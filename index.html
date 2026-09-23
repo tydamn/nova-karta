@@ -5,16 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nová karta</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌗</text></svg>">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&display=swap" rel="stylesheet">
+<link rel="preload" href="epo-font.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+@font-face{font-family:"EPO Grotesque";src:url("epo-font.woff2") format("woff2");
+  font-weight:200 800;font-style:normal;font-display:swap}
 :root{
   --fg:#fff; --fg2:rgba(255,255,255,.74); --fg3:rgba(255,255,255,.5);
   --panel:rgba(10,14,30,.32); --panel-strong:rgba(14,18,36,.86);
   --line:rgba(255,255,255,.14); --accent:#ffcf7a;
   --sky-top:#121a3a; --sky-bot:#3b2a5c;
-  --font:"Bricolage Grotesque", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  --font:"EPO Grotesque", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
 }
 body.light{
   --fg:#15171d; --fg2:rgba(21,23,29,.72); --fg3:rgba(21,23,29,.5);
@@ -142,6 +142,21 @@ body.light .day .pp{color:#1d62a8}
 .wx-empty p{margin:0 0 14px;color:var(--fg2)}
 
 .notes h2{font-size:1rem;font-weight:600;margin:0 0 8px}
+.nameday{margin:10px 0 0;color:var(--fg2);font-size:1rem}
+.nameday .tm{color:var(--fg3)}
+.wx-air{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);font-size:.84rem;color:var(--fg2)}
+.wx-air:empty{display:none}
+.wx-air b{display:flex;align-items:center;gap:7px;color:var(--fg);font-weight:550;font-size:.98rem}
+.wx-air i{width:9px;height:9px;border-radius:50%;flex:none;box-shadow:0 0 0 2px rgba(255,255,255,.15)}
+.wx-air small{color:var(--fg3);font-size:.8rem;font-weight:400}
+.fx-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.fx-head h2{font-size:1rem;font-weight:600;margin:0}
+.fx-row{display:grid;grid-template-columns:3.2em 1fr auto;align-items:baseline;gap:10px;padding:5px 0;font-variant-numeric:tabular-nums}
+.fx-row .cc{color:var(--fg2);font-size:.88rem;font-weight:550}
+.fx-row .rate{font-size:1.08rem}
+.fx-row .chg{font-size:.8rem;color:var(--fg3)}
+.fx-row .chg.up{color:#7fe0a0} .fx-row .chg.dn{color:#ff9d9d}
+body.light .fx-row .chg.up{color:#17803d} body.light .fx-row .chg.dn{color:#b42323}
 .notes textarea{width:100%;min-height:120px;resize:vertical;border:0;background:transparent;outline:none;
   font-size:.95rem;line-height:1.55;color:var(--fg);padding:0}
 .notes textarea::placeholder{color:var(--fg3)}
@@ -217,6 +232,7 @@ dialog .actions .sp{flex:1}
     <p class="greet" id="greet"></p>
     <div class="clock" id="clock" aria-live="off"></div>
     <div class="date"><span id="date"></span><span class="wk" id="week"></span></div>
+    <p class="nameday" id="nameday"></p>
 
     <form class="search" id="searchForm" role="search">
       <button type="button" class="engine" id="engineBtn" title="Zmeniť vyhľadávač"></button>
@@ -231,6 +247,7 @@ dialog .actions .sp{flex:1}
 
   <aside class="side">
     <div class="panel" id="wx"></div>
+    <div class="panel fx" id="fx" hidden></div>
     <div class="panel notes">
       <h2><label for="notes">Poznámky</label></h2>
       <textarea id="notes" placeholder="Čo nechceš zabudnúť…"></textarea>
@@ -284,6 +301,14 @@ dialog .actions .sp{flex:1}
   </section>
 
   <section>
+    <h3>Kurz eura</h3>
+    <label class="toggle">Zobraziť kurzy<input type="checkbox" id="setFx"></label>
+    <label class="field">Meny, oddelené čiarkou<input class="inp" id="setFxCur" placeholder="USD, CZK, HUF"></label>
+    <p class="help">Kurzy zverejňuje Európska centrálna banka raz denne okolo 16:00.</p>
+    <p class="msg" id="fxMsg"></p>
+  </section>
+
+  <section>
     <h3>Záloha</h3>
     <p class="help" style="margin-bottom:12px">Nastavenia sú uložené len v tomto prehliadači. Zálohu si stiahni ako súbor a obnov ju hocikde.</p>
     <div class="row">
@@ -318,7 +343,7 @@ dialog .actions .sp{flex:1}
 <script>
 (() => {
 const $ = s => document.querySelector(s);
-const KEY = 'epoNewTab.v1', IMGKEY = 'epoNewTab.bgimg', WXKEY = 'epoNewTab.wx';
+const KEY = 'epoNewTab.v1', IMGKEY = 'epoNewTab.bgimg', WXKEY = 'epoNewTab.wx', AQKEY = 'epoNewTab.aq', FXKEY = 'epoNewTab.fx';
 
 const DEFAULTS = {
   name: 'EPO', h24: true, seconds: false, engine: 'google',
@@ -331,14 +356,15 @@ const DEFAULTS = {
     { title: 'SME', url: 'https://www.sme.sk' },
     { title: 'Wikipédia', url: 'https://sk.wikipedia.org' },
   ],
-  notes: ''
+  notes: '',
+  fx: { show: true, cur: 'USD, CZK, HUF' }
 };
 
 function load() {
   try {
     const s = JSON.parse(localStorage.getItem(KEY));
     if (!s) return structuredClone(DEFAULTS);
-    return { ...structuredClone(DEFAULTS), ...s, bg: { ...DEFAULTS.bg, ...(s.bg || {}) } };
+    return { ...structuredClone(DEFAULTS), ...s, bg: { ...DEFAULTS.bg, ...(s.bg || {}) }, fx: { ...DEFAULTS.fx, ...(s.fx || {}) } };
   } catch { return structuredClone(DEFAULTS); }
 }
 let S = load();
@@ -376,11 +402,28 @@ function tick() {
     $('#date').textContent = d.charAt(0).toUpperCase() + d.slice(1);
     $('#week').textContent = `${isoWeek(now)}. týždeň`;
     updateSky(now);
+    renderNameday(now);
   }
 }
 function startClock() {
   tick();
   setTimeout(() => { tick(); setInterval(tick, 1000); }, 1000 - (Date.now() % 1000));
+}
+
+/* ================= name days ================= */
+const ND = "|Alexandra, Sandra, Karina|Daniela|Drahoslav|Andrea, Artur|Antónia|Bohuslava, Atila|Severín|Alexej, Alex, Alexia|Daša|Malvína|Ernest, Ernestína|Rastislav|Radovan, Radovana|Dobroslav, Dobroslava|Kristína|Nataša|Bohdana|Mário, Sára, Zara|Dalibor, Sebastián, Fabián|Vincent|Zora, Zoran, Auróra|Miloš|Timotej, Timon, Tímea|Gejza|Tamara|Bohuš|Alfonz|Gašpar|Ema|Emil~Tatiana, Táňa|Erich, Erik, Erika|Blažej|Veronika|Agáta|Dorota|Vanda|Zoja|Zdeno, Zdenko, Ronald|Gabriela|Dezider|Perla|Arpád|Valentín|Pravoslav|Ida, Liana|Miloslava|Jaromír, Jaromíra|Vlasta|Lívia, Aladár|Eleonóra|Etela|Roman, Romana|Matej, Matiáš, Matias|Frederik, Frederika|Viktor|Alexander|Zlatica|Radomír~Albín|Anežka|Bohumil, Bohumila|Kazimír|Fridrich|Radoslav, Radoslava|Tomáš|Alan, Alana|Františka|Branislav, Bronislav, Bruno|Angela, Angelika|Gregor|Vlastimil, Letícia|Matilda|Svetlana|Boleslav|Ľubica|Eduard|Jozef|Víťazoslav|Blahoslav|Beňadik, Benedikt|Adrián|Gabriel|Marián|Emanuel|Alena|Soňa|Miroslav|Vieroslava|Benjamín~Hugo|Zita|Richard|Izidor|Miroslava|Irena|Zoltán|Albert|Milena|Igor|Július|Estera|Aleš|Justín, Justína|Fedor|Dana, Danica|Rudolf|Valér|Jela|Marcel|Ervín|Slavomír|Vojtech|Juraj|Marek, Marko, Markus|Jaroslava|Jaroslav|Jarmila|Leo, Lea|Anastázia~|Žigmund|Galina|Florián|Lesana, Lesia|Hermína|Monika|Ingrida|Roland|Viktória|Blažena|Pankrác|Servác|Bonifác|Žofia, Sofia|Svetozár|Gizela|Viola|Gertrúda|Bernard|Zina|Júlia, Juliána, Rita|Želmíra|Ela, Vanesa|Urban|Dušan|Iveta|Viliam|Vilma|Ferdinand|Petrana, Petronela, Nela~Žaneta|Oxana, Xénia|Karolína, Kevin|Lenka|Laura|Norbert|Róbert|Medard|Stanislava|Margaréta, Gréta|Jesika|Zlatko|Anton|Vasil|Vít|Bianka, Blanka|Adolf|Vratislav|Alfréd|Valéria|Alojz|Paulína, Paula, Pavla|Sidónia|Ján|Olívia, Tadeáš|Adriána|Ladislav, Ladislava|Beáta|Peter, Pavol, Petra|Melánia~Diana|Berta|Miloslav|Prokop|Cyril, Metod|Patrik, Patrícia|Oliver|Ivan|Lujza|Amália|Milota|Nina|Margita|Kamil, Lara|Henrich|Drahomír, Drahomíra|Bohuslav|Kamila|Šarlota, Dušana|Eliáš, Iľja, Eliána|Daniel|Magdaléna|Oľga|Vladimír|Jakub|Anna, Hana, Aneta|Božena|Krištof|Marta|Libuša|Ignác~Božidara|Gustáv|Jerguš|Dominik, Dominika|Hortenzia|Jozefína|Štefánia|Oskar|Ľubomíra|Vavrinec|Zuzana|Darina, Dárius, Dária|Ľubomír|Mojmír|Marcela|Leonard|Milica|Elena, Helena|Lýdia|Anabela, Bela|Jana, Johana, Noema|Tichomír|Filip|Bartolomej|Ľudovít|Samuel|Silvia|Augustín|Nikola, Nikolaj, Nikoleta|Ružena|Nora~Drahoslava|Linda, Rebeka|Belo|Rozália|Regína|Alica|Marianna|Miriama|Martina|Oleg|Bystrík|Mária, Mia|Ctibor, Tobiáš, Tobias|Ľudomil, Radka|Jolana|Ľudmila|Olympia, Melisa|Eugénia|Konštantín|Ľuboslav, Ľuboslava|Matúš|Móric|Zdenka|Ľubor, Ľuboš|Vladislav|Edita|Cyprián, Damián|Václav|Michal, Michael, Michaela|Jarolím~Arnold|Levoslav|Stela|František|Viera|Natália|Eliška, Elisa|Brigita|Dionýz|Slavomíra|Valentína|Maximilián, Maxim, Max|Koloman|Boris|Terézia, Tereza|Vladimíra|Hedviga|Lukáš|Kristián|Vendelín|Uršuľa|Sergej|Alojzia|Kvetoslava|Aurel|Demeter|Sabína|Dobromila|Klára, Kiara|Šimon, Simon, Simona|Aurélia~Denis, Denisa||Hubert|Karol|Imrich|Renáta|René|Bohumír|Teodor, Teo|Tibor|Martin, Maroš|Svätopluk, Jonáš|Stanislav|Irma|Leopold|Agnesa|Klaudia|Eugen|Alžbeta, Liliana|Félix|Elvíra|Cecília|Klement|Emília|Katarína|Kornel|Milan|Henrieta|Vratko|Andrej, Ondrej, Andreas~Edmund|Bibiána, Viviána|Oldrich|Barbora, Barbara|Oto|Mikuláš, Nikolas|Ambróz|Marína|Izabela|Radúz|Hilda|Otília|Lucia|Branislava, Bronislava|Ivica|Albína|Kornélia|Sláva, Slávka|Judita|Dagmara|Bohdan, Noel|Adela|Nadežda, Naďa|Adam, Eva||Štefan|Filoména|Ivana, Ivona|Milada, Nátan|Dávid|Silvester".split('~').map(m => m.split('|'));
+const ND_EMPTY = { '1-1': 'Deň vzniku Slovenskej republiky', '5-1': 'Sviatok práce', '11-2': 'Pamiatka zosnulých', '12-25': 'Prvý sviatok vianočný' };
+const joinNames = s => { const a = s.split(', '); return a.length > 1 ? a.slice(0, -1).join(', ') + ' a ' + a.at(-1) : a[0]; };
+let ndDay = '';
+function renderNameday(now) {
+  const key = now.toDateString(); if (key === ndDay) return; ndDay = key;
+  const tm = new Date(now); tm.setDate(tm.getDate() + 1);
+  const get = d => ND[d.getMonth()][d.getDate() - 1] || '';
+  const hol = d => ND_EMPTY[`${d.getMonth() + 1}-${d.getDate()}`];
+  const t = get(now), n = get(tm);
+  const today = t ? `Meniny ${t.includes(',') ? 'majú' : 'má'} ${esc(joinNames(t))}.` : (hol(now) ? esc(hol(now)) + '.' : '');
+  const tomorrow = n ? `Zajtra ${esc(joinNames(n))}.` : (hol(tm) ? `Zajtra ${esc(hol(tm).charAt(0).toLowerCase() + hol(tm).slice(1))}.` : '');
+  $('#nameday').innerHTML = `${today} <span class="tm">${tomorrow}</span>`;
 }
 
 /* ================= live sky ================= */
@@ -644,13 +687,16 @@ function renderWx(stale) {
       <text x="${Math.min(W - 20, Math.max(4, pts[hiI][0] - 8))}" y="${pts[hiI][1] - 2 < 10 ? 10 : pts[hiI][1] - 3}" font-size="10" fill="currentColor" opacity=".8">${Math.round(mx)}°</text>
     </svg>
     <div class="spark-axis"><span>Teraz</span><span>${hourAt(6)}</span><span>${hourAt(12)}</span><span>${hourAt(18)}</span><span>${hourAt(24)}</span></div>
-    <div class="days">${days}</div>`;
+    <div class="days">${days}</div>
+    <div class="wx-air" id="wxAir"></div>`;
+  renderAir();
   $('#wxCity').onclick = () => openSettings('#citySection');
   $('#wxRefresh').onclick = () => loadWeather(true);
   updateSky();
 }
 async function loadWeather(force) {
   if (!S.city) { WX = null; renderWxEmpty(); return; }
+  idle(() => loadAir(force));
   const { lat, lon } = S.city;
   let cache = null; try { cache = JSON.parse(localStorage.getItem(WXKEY)); } catch { }
   const same = cache && cache.lat === lat && cache.lon === lon;
@@ -658,7 +704,7 @@ async function loadWeather(force) {
   if (!WX) $('#wx').innerHTML = `<p class="wx-desc" style="margin:0">Načítavam počasie…</p>`;
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
     `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,is_day` +
-    `&hourly=temperature_2m,precipitation_probability&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max` +
+    `&hourly=temperature_2m,precipitation_probability&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max,uv_index_max` +
     `&timezone=auto&forecast_days=6`;
   try {
     const r = await fetch(url); if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -701,6 +747,85 @@ $('#geoBtn').addEventListener('click', () => {
   }, () => { $('#cityMsg').textContent = 'Polohu sa nepodarilo zistiť. Zadaj mesto ručne.'; }, { timeout: 10000 });
 });
 
+/* ================= air quality & UV ================= */
+const idle = fn => ('requestIdleCallback' in window ? requestIdleCallback(fn, { timeout: 1500 }) : setTimeout(fn, 200));
+let AQ = null;
+const AQI_LVL = [[20, 'Dobré', '#50f0e6'], [40, 'Prijateľné', '#50ccaa'], [60, 'Mierne znečistené', '#f0e641'], [80, 'Zlé', '#ff5050'], [100, 'Veľmi zlé', '#c0003c'], [1e9, 'Extrémne zlé', '#9d3fb5']];
+const UV_LVL = [[3, 'nízky', '#6bcb77'], [6, 'stredný', '#ffd93d'], [8, 'vysoký', '#ff9f43'], [11, 'veľmi vysoký', '#ff5c5c'], [1e9, 'extrémny', '#b983ff']];
+const lvl = (tbl, v) => tbl.find(l => v < l[0]);
+function renderAir() {
+  const box = $('#wxAir'); if (!box || !AQ?.current) return;
+  const c = AQ.current, out = [];
+  if (c.european_aqi != null) {
+    const [, name, col] = lvl(AQI_LVL, c.european_aqi);
+    out.push(`<span title="Európsky index kvality ovzdušia${c.pm2_5 != null ? `, PM2,5 ${Math.round(c.pm2_5)} µg/m³, PM10 ${Math.round(c.pm10)} µg/m³` : ''}">Ovzdušie<b><i style="background:${col}"></i>${name} <small>${Math.round(c.european_aqi)}</small></b></span>`);
+  }
+  const max = WX?.daily?.uv_index_max?.[0];
+  const uv = c.uv_index ?? max;
+  if (uv != null) {
+    const [, name, col] = lvl(UV_LVL, uv);
+    out.push(`<span>UV index<b><i style="background:${col}"></i>${Math.round(uv)} ${name}${max != null ? ` <small>max ${Math.round(max)}</small>` : ''}</b></span>`);
+  }
+  box.innerHTML = out.join('');
+}
+async function loadAir(force) {
+  if (!S.city) return;
+  const { lat, lon } = S.city;
+  let cache = null; try { cache = JSON.parse(localStorage.getItem(AQKEY)); } catch { }
+  const same = cache && cache.lat === lat && cache.lon === lon;
+  if (same) { AQ = cache.data; renderAir(); }
+  if (!force && same && Date.now() - cache.ts < 30 * 60e3) return;
+  try {
+    const r = await fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=european_aqi,pm2_5,pm10,uv_index&timezone=auto`);
+    if (!r.ok) throw 0;
+    AQ = await r.json();
+    try { localStorage.setItem(AQKEY, JSON.stringify({ ts: Date.now(), lat, lon, data: AQ })); } catch { }
+    renderAir();
+  } catch { }
+}
+
+/* ================= exchange rates ================= */
+let FX = null;
+const fxList = () => [...new Set((S.fx.cur.toUpperCase().match(/[A-Z]{3}/g) || []).filter(c => c !== 'EUR'))].slice(0, 8);
+const nf = (v, d) => new Intl.NumberFormat('sk-SK', { minimumFractionDigits: d, maximumFractionDigits: d }).format(v);
+function renderFx() {
+  const box = $('#fx');
+  if (!S.fx.show || !fxList().length) { box.hidden = true; return; }
+  box.hidden = false;
+  if (!FX?.rates) { box.innerHTML = `<div class="fx-head"><h2>Kurz eura</h2></div><p class="wx-desc" style="margin:0">Načítavam kurzy…</p>`; return; }
+  const dates = Object.keys(FX.rates).sort();
+  const last = FX.rates[dates.at(-1)], prev = FX.rates[dates.at(-2)] || {};
+  const [y, m, d] = dates.at(-1).split('-');
+  const rows = fxList().map(c => {
+    const v = last[c]; if (v == null) return `<div class="fx-row"><span class="cc">${c}</span><span class="rate">—</span><span class="chg">ECB tento kurz neuvádza</span></div>`;
+    const dec = v < 10 ? 4 : v < 100 ? 3 : 2;
+    let chg = '';
+    if (prev[c]) { const p = (v / prev[c] - 1) * 100; chg = Math.abs(p) < 0.005 ? '<span class="chg">bez zmeny</span>' : `<span class="chg ${p > 0 ? 'up' : 'dn'}">${p > 0 ? '▲' : '▼'} ${nf(Math.abs(p), 2)} %</span>`; }
+    return `<div class="fx-row"><span class="cc">${c}</span><span class="rate">${nf(v, dec)}</span>${chg}</div>`;
+  }).join('');
+  box.innerHTML = `<div class="fx-head"><h2>Kurz eura</h2><span class="wx-upd">ECB, ${+d}. ${+m}.</span></div>${rows}`;
+}
+async function loadFx(force) {
+  if (!S.fx.show || !fxList().length) { renderFx(); return; }
+  const sym = fxList().join(',');
+  let cache = null; try { cache = JSON.parse(localStorage.getItem(FXKEY)); } catch { }
+  const same = cache && cache.sym === sym;
+  if (same) FX = cache.data;
+  renderFx();
+  if (!force && same && Date.now() - cache.ts < 6 * 3600e3) return;
+  const from = new Date(Date.now() - 12 * 864e5).toISOString().slice(0, 10);
+  try {
+    const r = await fetch(`https://api.frankfurter.dev/v1/${from}..?symbols=${sym}`);
+    if (!r.ok) throw 0;
+    FX = await r.json();
+    try { localStorage.setItem(FXKEY, JSON.stringify({ ts: Date.now(), sym, data: FX })); } catch { }
+    renderFx(); $('#fxMsg').textContent = '';
+  } catch {
+    if (!same) { $('#fx').innerHTML = `<div class="fx-head"><h2>Kurz eura</h2></div><p class="wx-desc" style="margin:0">Kurzy sa nepodarilo načítať.</p>`; }
+    $('#fxMsg').textContent = 'Kurzy sa nepodarilo načítať. Skontroluj pripojenie alebo kódy mien.';
+  }
+}
+
 /* ================= notes ================= */
 let noteT;
 $('#notes').value = S.notes;
@@ -718,11 +843,18 @@ $('#closeSettings').onclick = closeSettings;
 $('#scrim').onclick = closeSettings;
 
 function fillSettings() {
+  $('#setFx').checked = S.fx.show; $('#setFxCur').value = S.fx.cur;
   $('#setName').value = S.name; $('#set24').checked = S.h24; $('#setSec').checked = S.seconds;
   $('#setColor').value = S.bg.color; $('#setImgUrl').value = S.bg.imageUrl;
   $('#setDim').value = S.bg.dim; $('#setBlur').value = S.bg.blur;
   $('#dimVal').textContent = S.bg.dim + ' %'; $('#blurVal').textContent = S.bg.blur + ' px';
 }
+$('#setFx').addEventListener('change', e => { S.fx.show = e.target.checked; save(); loadFx(); });
+$('#setFxCur').addEventListener('change', e => {
+  S.fx.cur = e.target.value; const l = fxList(); S.fx.cur = l.join(', '); e.target.value = S.fx.cur;
+  save(); FX = null; loadFx(true);
+  $('#fxMsg').textContent = l.length ? '' : 'Zadaj aspoň jeden trojpísmenový kód, napr. USD.';
+});
 $('#setName').addEventListener('input', e => { S.name = e.target.value; save(); lastMinute = -1; tick(); });
 $('#set24').addEventListener('change', e => { S.h24 = e.target.checked; save(); tick(); });
 $('#setSec').addEventListener('change', e => { S.seconds = e.target.checked; save(); tick(); });
@@ -757,14 +889,14 @@ $('#importFile').addEventListener('change', async e => {
   try {
     const d = JSON.parse(await f.text());
     if (!Array.isArray(d.links)) throw 0;
-    S = { ...structuredClone(DEFAULTS), ...d, bg: { ...DEFAULTS.bg, ...(d.bg || {}) } };
+    S = { ...structuredClone(DEFAULTS), ...d, bg: { ...DEFAULTS.bg, ...(d.bg || {}) }, fx: { ...DEFAULTS.fx, ...(d.fx || {}) } };
     save(); init(); $('#backupMsg').textContent = 'Záloha obnovená.';
   } catch { $('#backupMsg').textContent = 'Tento súbor nie je platná záloha.'; }
   e.target.value = '';
 });
 $('#resetBtn').addEventListener('click', () => {
   if (!confirm('Obnoviť všetky nastavenia na predvolené? Odkazy aj poznámky sa vymažú.')) return;
-  try { localStorage.removeItem(KEY); localStorage.removeItem(IMGKEY); localStorage.removeItem(WXKEY); } catch { }
+  try { [KEY, IMGKEY, WXKEY, AQKEY, FXKEY].forEach(k => localStorage.removeItem(k)); } catch { }
   S = structuredClone(DEFAULTS); WX = null; init(); $('#backupMsg').textContent = 'Nastavenia obnovené.';
 });
 
@@ -780,12 +912,12 @@ document.addEventListener('keydown', e => {
 
 function init() {
   renderEngine(); renderLinks(); fillSettings(); applyBg();
-  $('#notes').value = S.notes; lastMinute = -1; tick(); loadWeather();
+  $('#notes').value = S.notes; lastMinute = -1; ndDay = ''; tick(); loadWeather(); idle(() => loadFx());
 }
 buildSwatches();
 init();
 startClock();
-setInterval(() => loadWeather(), 20 * 60e3);
+setInterval(() => { loadWeather(); loadFx(); }, 20 * 60e3);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { lastMinute = -1; tick(); loadWeather(); } });
 })();
 </script>
