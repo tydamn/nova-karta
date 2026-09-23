@@ -172,7 +172,10 @@ body.light .fx-row .chg.up{color:#17803d} body.light .fx-row .chg.dn{color:#b423
 .btn.danger{color:#ff9d9d}
 
 .w-time{width:fit-content}
-body.free .w{position:fixed;margin:0;z-index:2}
+body.free .w{position:fixed;margin:0;z-index:2;transform-origin:0 0}
+body.free .greet{font-size:clamp(1.15rem,calc(var(--refw) * .016),1.45rem)}
+body.free .clock{font-size:clamp(5.5rem,calc(var(--refw) * .15),12.5rem)}
+body.free .date{font-size:clamp(1.05rem,calc(var(--refw) * .014),1.3rem)}
 body.free .page{min-height:0;padding:0}
 body.editing .w{outline:1.5px dashed rgba(255,255,255,.55);outline-offset:6px;border-radius:18px;cursor:grab;touch-action:none}
 body.editing .w *{pointer-events:none}
@@ -953,17 +956,31 @@ $('#resetBtn').addEventListener('click', () => {
 const widgets = () => [...document.querySelectorAll('[data-w]')];
 const wide = () => innerWidth >= 900;
 const GAP = 16, SNAP = 8;
+// Layout lives on a fixed "canvas" = the window size at the time it was first arranged.
+// On any other screen the whole canvas is scaled uniformly to fit, so it looks the same everywhere.
+function canvas() {
+  const R = S.layoutRef, k = Math.min(innerWidth / R.w, innerHeight / R.h);
+  return { k, ox: (innerWidth - R.w * k) / 2, oy: 0 };
+}
+function migrateLayout() {
+  if (!S.layout || S.layoutRef) return;
+  const L = {};
+  for (const [id, p] of Object.entries(S.layout)) L[id] = { x: Math.round(p.x * innerWidth), y: Math.round(p.y * innerHeight), w: p.w };
+  S.layout = L; S.layoutRef = { w: innerWidth, h: innerHeight }; save();
+}
 function applyLayout() {
+  migrateLayout();
   const on = !!S.layout && wide();
   document.body.classList.toggle('free', on);
+  const c = on ? canvas() : null;
+  if (on) document.documentElement.style.setProperty('--refw', S.layoutRef.w + 'px');
   widgets().forEach(w => {
     const p = on && S.layout[w.dataset.w];
-    if (!p) { w.style.left = w.style.top = w.style.width = ''; return; }
-    const width = Math.min(p.w, innerWidth - 16);
-    w.style.width = width + 'px';
-    const h = w.offsetHeight;
-    w.style.left = Math.round(Math.min(Math.max(0, p.x * innerWidth), innerWidth - width)) + 'px';
-    w.style.top = Math.round(Math.min(Math.max(0, p.y * innerHeight), Math.max(0, innerHeight - Math.min(h, innerHeight)))) + 'px';
+    if (!p) { w.style.left = w.style.top = w.style.width = w.style.transform = ''; return; }
+    w.style.width = w.dataset.w === 'time' ? '' : p.w + 'px';
+    w.style.transform = Math.abs(c.k - 1) < 0.001 ? '' : `scale(${c.k})`;
+    w.style.left = Math.round(c.ox + p.x * c.k) + 'px';
+    w.style.top = Math.round(c.oy + p.y * c.k) + 'px';
   });
 }
 function freezeLayout() {
@@ -971,14 +988,14 @@ function freezeLayout() {
   widgets().forEach(w => {
     if (w.hidden) return;
     const r = w.getBoundingClientRect();
-    L[w.dataset.w] = { x: r.left / innerWidth, y: r.top / innerHeight, w: Math.round(r.width) };
+    L[w.dataset.w] = { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width) };
   });
-  S.layout = L; save(); applyLayout();
+  S.layout = L; S.layoutRef = { w: innerWidth, h: innerHeight }; save(); applyLayout();
 }
 function storePos(w) {
-  const r = w.getBoundingClientRect();
-  S.layout = S.layout || {};
-  S.layout[w.dataset.w] = { x: r.left / innerWidth, y: r.top / innerHeight, w: Math.round(r.width) };
+  if (!S.layout) return;
+  const c = canvas(), r = w.getBoundingClientRect(), id = w.dataset.w;
+  S.layout[id] = { x: Math.round((r.left - c.ox) / c.k), y: Math.round((r.top - c.oy) / c.k), w: id === 'time' ? (S.layout[id]?.w || 0) : w.offsetWidth };
   save();
 }
 function setEditing(on) {
@@ -990,7 +1007,7 @@ function setEditing(on) {
   hideGuides();
 }
 const editing = () => document.body.classList.contains('editing');
-function resetLayout() { S.layout = null; save(); applyLayout(); }
+function resetLayout() { S.layout = null; S.layoutRef = null; save(); applyLayout(); }
 function hideGuides() { $('#guideX').style.display = $('#guideY').style.display = 'none'; }
 function snapAxis(pos, size, lines) {
   // candidates: my start / end / center against the given lines
