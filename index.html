@@ -147,6 +147,13 @@ body.light .day .pp{color:#1d62a8}
 
 .notes h2{font-size:1rem;font-weight:600;margin:0 0 8px}
 .nameday{margin:10px 0 0;color:var(--fg2);font-size:1rem}
+.quote{margin:clamp(32px,6vh,56px) 0 0;max-width:560px;text-shadow:0 1px 14px rgba(0,0,0,.35)}
+body.light .quote{text-shadow:none}
+.quote blockquote{margin:0;font-size:1.28rem;font-weight:350;line-height:1.45;letter-spacing:-.005em;text-wrap:pretty}
+.quote blockquote::before{content:"\201C";display:block;font-size:3.2rem;line-height:.62;font-weight:700;color:var(--accent);margin-bottom:6px}
+.quote figcaption{margin-top:12px;font-size:.78rem;font-weight:550;color:var(--fg2);letter-spacing:.07em;text-transform:uppercase}
+.quote figcaption::before{content:"";display:inline-block;width:22px;height:1px;background:currentColor;vertical-align:middle;margin-right:10px;opacity:.7}
+select.inp option{background:#1b2033;color:#fff}
 .nameday .tm{color:var(--fg3)}
 .wx-air{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);font-size:.84rem;color:var(--fg2)}
 .wx-air:empty{display:none}
@@ -276,6 +283,11 @@ dialog .actions .sp{flex:1}
     </div>
 
     <nav class="links w" id="links" data-w="links" data-label="Odkazy" aria-label="Obľúbené stránky"></nav>
+
+    <figure class="quote w" id="quote" data-w="quote" data-label="Citát">
+      <blockquote id="quoteText"></blockquote>
+      <figcaption id="quoteBy"></figcaption>
+    </figure>
   </main>
 
   <aside class="side">
@@ -312,6 +324,19 @@ dialog .actions .sp{flex:1}
     <label class="field">Meno v pozdrave<input class="inp" id="setName" maxlength="40"></label>
     <label class="toggle">24-hodinový formát<input type="checkbox" id="set24"></label>
     <label class="toggle">Zobraziť sekundy<input type="checkbox" id="setSec"></label>
+  </section>
+
+  <section>
+    <h3>Citát</h3>
+    <label class="toggle">Zobraziť citát<input type="checkbox" id="setQuote"></label>
+    <label class="field">Jazyk
+      <select class="inp" id="setQuoteLang">
+        <option value="all">Slovenské aj anglické</option>
+        <option value="sk">Len slovenské</option>
+        <option value="en">Len anglické</option>
+      </select>
+    </label>
+    <p class="help">Citát sa mení každý deň o polnoci a o poludní.</p>
   </section>
 
   <section>
@@ -409,14 +434,15 @@ const DEFAULTS = {
     { title: 'Wikipédia', url: 'https://sk.wikipedia.org' },
   ],
   notes: '',
-  fx: { show: true, cur: 'USD, CZK, HUF' }
+  fx: { show: true, cur: 'USD, CZK, HUF' },
+  quote: { show: true, lang: 'all' }
 };
 
 function load() {
   try {
     const s = JSON.parse(localStorage.getItem(KEY));
     if (!s) return structuredClone(DEFAULTS);
-    return { ...structuredClone(DEFAULTS), ...s, bg: { ...DEFAULTS.bg, ...(s.bg || {}) }, fx: { ...DEFAULTS.fx, ...(s.fx || {}) } };
+    return { ...structuredClone(DEFAULTS), ...s, bg: { ...DEFAULTS.bg, ...(s.bg || {}) }, fx: { ...DEFAULTS.fx, ...(s.fx || {}) }, quote: { ...DEFAULTS.quote, ...(s.quote || {}) } };
   } catch { return structuredClone(DEFAULTS); }
 }
 let S = load();
@@ -455,6 +481,7 @@ function tick() {
     $('#week').textContent = `${isoWeek(now)}. týždeň`;
     updateSky(now);
     renderNameday(now);
+    renderQuote(now);
   }
 }
 function startClock() {
@@ -476,6 +503,25 @@ function renderNameday(now) {
   const today = t ? `Meniny ${t.includes(',') ? 'majú' : 'má'} ${esc(joinNames(t))}.` : (hol(now) ? esc(hol(now)) + '.' : '');
   const tomorrow = n ? `Zajtra ${esc(joinNames(n))}.` : (hol(tm) ? `Zajtra ${esc(hol(tm).charAt(0).toLowerCase() + hol(tm).slice(1))}.` : '');
   $('#nameday').innerHTML = `${today} <span class="tm">${tomorrow}</span>`;
+}
+
+/* ================= quote ================= */
+const QUOTES = [["Talk is cheap. Show me the code.", "Linus Torvalds", "en"], ["Premature optimization is the root of all evil.", "Donald Knuth", "en"], ["Programs must be written for people to read, and only incidentally for machines to execute.", "Harold Abelson", "en"], ["Any fool can write code that a computer can understand. Good programmers write code that humans can understand.", "Martin Fowler", "en"], ["There are only two hard things in Computer Science: cache invalidation and naming things.", "Phil Karlton", "en"], ["Simplicity is prerequisite for reliability.", "Edsger W. Dijkstra", "en"], ["The best way to predict the future is to invent it.", "Alan Kay", "en"], ["Make it work, make it right, make it fast.", "Kent Beck", "en"], ["Walking on water and developing software from a specification are easy if both are frozen.", "Edward V. Berard", "en"], ["It always takes longer than you expect, even when you take into account Hofstadter's Law.", "Douglas Hofstadter", "en"], ["Adding manpower to a late software project makes it later.", "Fred Brooks", "en"], ["Controlling complexity is the essence of computer programming.", "Brian Kernighan", "en"], ["Debugging is twice as hard as writing the code in the first place. Therefore, if you write the code as cleverly as possible, you are, by definition, not smart enough to debug it.", "Brian Kernighan", "en"], ["The most dangerous phrase in the language is: we've always done it this way.", "Grace Hopper", "en"], ["It's easier to ask forgiveness than it is to get permission.", "Grace Hopper", "en"], ["Real artists ship.", "Steve Jobs", "en"], ["The only way to do great work is to love what you do.", "Steve Jobs", "en"], ["If you're not embarrassed by the first version of your product, you've launched too late.", "Reid Hoffman", "en"], ["An expert is a person who has made all the mistakes that can be made in a very narrow field.", "Niels Bohr", "en"], ["Any sufficiently advanced technology is indistinguishable from magic.", "Arthur C. Clarke", "en"], ["UNIX is simple. It just takes a genius to understand its simplicity.", "Dennis Ritchie", "en"], ["Code never lies, comments sometimes do.", "Ron Jeffries", "en"], ["Optimism is an occupational hazard of programming: feedback is the treatment.", "Kent Beck", "en"], ["We are what we repeatedly do. Excellence, then, is not an act, but a habit.", "Will Durant", "en"], ["The unexamined life is not worth living.", "Sokrates", "en"], ["If I have seen further it is by standing on the shoulders of Giants.", "Isaac Newton", "en"], ["Imagination is more important than knowledge.", "Albert Einstein", "en"], ["The first principle is that you must not fool yourself, and you are the easiest person to fool.", "Richard Feynman", "en"], ["What I cannot create, I do not understand.", "Richard Feynman", "en"], ["Nothing in life is to be feared, it is only to be understood.", "Marie Curie", "en"], ["It is not the mountain we conquer, but ourselves.", "Edmund Hillary", "en"], ["Well done is better than well said.", "Benjamin Franklin", "en"], ["Energy and persistence conquer all things.", "Benjamin Franklin", "en"], ["Lost time is never found again.", "Benjamin Franklin", "en"], ["Perfection is achieved, not when there is nothing more to add, but when there is nothing left to take away.", "Antoine de Saint-Exupéry", "en"], ["A journey of a thousand miles begins with a single step.", "Lao-c'", "en"], ["The best time to plant a tree was 20 years ago. The second best time is now.", "Čínske príslovie", "en"], ["Fall seven times, stand up eight.", "Japonské príslovie", "en"], ["If you want to go fast, go alone. If you want to go far, go together.", "Africké príslovie", "en"], ["Genius is one percent inspiration and ninety-nine percent perspiration.", "Thomas Edison", "en"], ["Do what you can, with what you have, where you are.", "Theodore Roosevelt", "en"], ["Knowledge is power.", "Francis Bacon", "en"], ["Brevity is the soul of wit.", "William Shakespeare", "en"], ["I think, therefore I am.", "René Descartes", "en"], ["Life can only be understood backwards; but it must be lived forwards.", "Søren Kierkegaard", "en"], ["He who has a why to live can bear almost any how.", "Friedrich Nietzsche", "en"], ["The details are not the details. They make the design.", "Charles Eames", "en"], ["Good design is as little design as possible.", "Dieter Rams", "en"], ["Weeks of programming can save you hours of planning.", "Programátorské úslovie", "en"], ["The cheapest, fastest, and most reliable components are those that aren't there.", "Gordon Bell", "en"], ["Stay hungry. Stay foolish.", "Whole Earth Catalog", "en"], ["Carpe diem.", "Horatius · využi deň", "la"], ["Festina lente.", "Augustus · ponáhľaj sa pomaly", "la"], ["Per aspera ad astra.", "Latinské príslovie · cez prekážky ku hviezdam", "la"], ["Veni, vidi, vici.", "Julius Caesar · prišiel som, videl som, zvíťazil som", "la"], ["Dum spiro, spero.", "Latinské príslovie · kým dýcham, dúfam", "la"], ["Veriť, milovať, pracovať.", "Milan Rastislav Štefánik", "sk"], ["Bez práce nie sú koláče.", "Slovenské príslovie", "sk"], ["Kto druhému jamu kope, sám do nej padne.", "Slovenské príslovie", "sk"], ["Ranné vtáča ďalej doletí.", "Slovenské príslovie", "sk"], ["Trpezlivosť ruže prináša.", "Slovenské príslovie", "sk"], ["Lepší vrabec v hrsti ako holub na streche.", "Slovenské príslovie", "sk"], ["Čo môžeš urobiť dnes, neodkladaj na zajtra.", "Slovenské príslovie", "sk"], ["Múdrejší ustúpi.", "Slovenské príslovie", "sk"], ["Kto sa smeje naposledy, ten sa smeje najlepšie.", "Slovenské príslovie", "sk"], ["Aká práca, taká pláca.", "Slovenské príslovie", "sk"], ["Pomaly ďalej zájdeš.", "Slovenské príslovie", "sk"], ["Všetko zlé je na niečo dobré.", "Slovenské príslovie", "sk"], ["Tichá voda brehy myje.", "Slovenské príslovie", "sk"], ["Kde sa dvaja bijú, tretí víťazí.", "Slovenské príslovie", "sk"], ["Sýty hladnému neverí.", "Slovenské príslovie", "sk"], ["Kto neskoro chodí, sám sebe škodí.", "Slovenské príslovie", "sk"], ["Dvakrát meraj, raz strihaj.", "Slovenské príslovie", "sk"], ["Ani Rím nepostavili za deň.", "Slovenské príslovie", "sk"], ["Nie je všetko zlato, čo sa blyští.", "Slovenské príslovie", "sk"], ["Komu niet rady, tomu niet pomoci.", "Slovenské príslovie", "sk"], ["Priateľa poznáš v núdzi.", "Slovenské príslovie", "sk"], ["Kto hľadá, nájde.", "Slovenské príslovie", "sk"], ["Koľko rečí vieš, toľkokrát si človekom.", "Slovenské príslovie", "sk"], ["Hlad je najlepší kuchár.", "Slovenské príslovie", "sk"], ["Ráno je múdrejšie ako večer.", "Slovenské príslovie", "sk"], ["Kto nič nerobí, nič nepokazí.", "Slovenské príslovie", "sk"], ["Vrana k vrane sadá.", "Slovenské príslovie", "sk"], ["Čas sú peniaze.", "Slovenské príslovie", "sk"], ["Učený z neba nepadol.", "Slovenské príslovie", "sk"], ["Všade dobre, doma najlepšie.", "Slovenské príslovie", "sk"], ["Zvedavý bude skoro starý.", "Slovenské príslovie", "sk"], ["Kto chce psa biť, palicu si nájde.", "Slovenské príslovie", "sk"], ["Opakovanie je matka múdrosti.", "Slovenské príslovie", "sk"], ["Aký pán, taký krám.", "Slovenské príslovie", "sk"], ["Kto sa bojí, nech nejde do lesa.", "Slovenské príslovie", "sk"], ["Dobrá rada nad zlato.", "Slovenské príslovie", "sk"], ["Chybami sa človek učí.", "Slovenské príslovie", "sk"], ["Kde je vôľa, tam je cesta.", "Slovenské príslovie", "sk"]];
+let quoteKey = '';
+function renderQuote(now = new Date(), force) {
+  const box = $('#quote');
+  box.hidden = !S.quote.show;
+  if (!S.quote.show) return;
+  const lang = S.quote.lang;
+  const list = QUOTES.filter(q => lang === 'all' || q[2] === lang || q[2] === 'la');
+  // one slot per half-day, local midnight and noon
+  const slot = Math.floor((now.getTime() - now.getTimezoneOffset() * 60000) / 432e5);
+  const key = slot + lang; if (key === quoteKey && !force) return; quoteKey = key;
+  let step = 37; const gcd = (a, b) => b ? gcd(b, a % b) : a; while (gcd(step, list.length) !== 1) step += 2;
+  const [text, by, ql] = list[(slot * step) % list.length];
+  $('#quoteText').textContent = text;
+  $('#quoteText').lang = ql === 'la' ? 'la' : ql;
+  $('#quoteBy').textContent = by;
 }
 
 /* ================= live sky ================= */
@@ -895,12 +941,15 @@ $('#closeSettings').onclick = closeSettings;
 $('#scrim').onclick = closeSettings;
 
 function fillSettings() {
+  $('#setQuote').checked = S.quote.show; $('#setQuoteLang').value = S.quote.lang;
   $('#setFx').checked = S.fx.show; $('#setFxCur').value = S.fx.cur;
   $('#setName').value = S.name; $('#set24').checked = S.h24; $('#setSec').checked = S.seconds;
   $('#setColor').value = S.bg.color; $('#setImgUrl').value = S.bg.imageUrl;
   $('#setDim').value = S.bg.dim; $('#setBlur').value = S.bg.blur;
   $('#dimVal').textContent = S.bg.dim + ' %'; $('#blurVal').textContent = S.bg.blur + ' px';
 }
+$('#setQuote').addEventListener('change', e => { S.quote.show = e.target.checked; save(); renderQuote(new Date(), true); applyLayout(); });
+$('#setQuoteLang').addEventListener('change', e => { S.quote.lang = e.target.value; save(); renderQuote(new Date(), true); });
 $('#setFx').addEventListener('change', e => { S.fx.show = e.target.checked; save(); loadFx(); });
 $('#setFxCur').addEventListener('change', e => {
   S.fx.cur = e.target.value; const l = fxList(); S.fx.cur = l.join(', '); e.target.value = S.fx.cur;
@@ -941,7 +990,7 @@ $('#importFile').addEventListener('change', async e => {
   try {
     const d = JSON.parse(await f.text());
     if (!Array.isArray(d.links)) throw 0;
-    S = { ...structuredClone(DEFAULTS), ...d, bg: { ...DEFAULTS.bg, ...(d.bg || {}) }, fx: { ...DEFAULTS.fx, ...(d.fx || {}) } };
+    S = { ...structuredClone(DEFAULTS), ...d, bg: { ...DEFAULTS.bg, ...(d.bg || {}) }, fx: { ...DEFAULTS.fx, ...(d.fx || {}) }, quote: { ...DEFAULTS.quote, ...(d.quote || {}) } };
     save(); init(); $('#backupMsg').textContent = 'Záloha obnovená.';
   } catch { $('#backupMsg').textContent = 'Tento súbor nie je platná záloha.'; }
   e.target.value = '';
@@ -968,6 +1017,10 @@ function migrateLayout() {
   for (const [id, p] of Object.entries(S.layout)) L[id] = { x: Math.round(p.x * innerWidth), y: Math.round(p.y * innerHeight), w: p.w };
   S.layout = L; S.layoutRef = { w: innerWidth, h: innerHeight }; save();
 }
+const DEFAULT_POS = {
+  quote: R => ({ x: Math.round(R.w * .06), y: Math.max(0, R.h - 200), w: 560 }),
+  fx: R => ({ x: Math.max(0, R.w - 440), y: Math.round(R.h * .55), w: 360 }),
+};
 function applyLayout() {
   migrateLayout();
   const on = !!S.layout && wide();
@@ -975,7 +1028,8 @@ function applyLayout() {
   const c = on ? canvas() : null;
   if (on) document.documentElement.style.setProperty('--refw', S.layoutRef.w + 'px');
   widgets().forEach(w => {
-    const p = on && S.layout[w.dataset.w];
+    let p = on && S.layout[w.dataset.w];
+    if (on && !p && !w.hidden && DEFAULT_POS[w.dataset.w]) { p = S.layout[w.dataset.w] = DEFAULT_POS[w.dataset.w](S.layoutRef); save(); }
     if (!p) { w.style.left = w.style.top = w.style.width = w.style.transform = ''; return; }
     w.style.width = w.dataset.w === 'time' ? '' : p.w + 'px';
     w.style.transform = Math.abs(c.k - 1) < 0.001 ? '' : `scale(${c.k})`;
@@ -1083,7 +1137,7 @@ document.addEventListener('keydown', e => {
 });
 
 function init() {
-  renderEngine(); renderLinks(); fillSettings(); applyBg(); applyLayout();
+  renderEngine(); renderLinks(); fillSettings(); applyBg(); renderQuote(new Date(), true); applyLayout();
   $('#notes').value = S.notes; lastMinute = -1; ndDay = ''; tick(); loadWeather(); idle(() => loadFx());
 }
 buildSwatches();
