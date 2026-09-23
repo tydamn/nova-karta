@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nová karta</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌗</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --fg:#fff; --fg2:rgba(255,255,255,.74); --fg3:rgba(255,255,255,.5);
+  --panel:rgba(10,14,30,.32); --panel-strong:rgba(14,18,36,.86);
+  --line:rgba(255,255,255,.14); --accent:#ffcf7a;
+  --sky-top:#121a3a; --sky-bot:#3b2a5c;
+  --font:"Bricolage Grotesque", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+}
+body.light{
+  --fg:#15171d; --fg2:rgba(21,23,29,.72); --fg3:rgba(21,23,29,.5);
+  --panel:rgba(255,255,255,.42); --line:rgba(0,0,0,.12); --accent:#9a5b00;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  font-family:var(--font); color:var(--fg); background:#0b1022;
+  font-size:16px; line-height:1.45; -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:8px}
+
+/* ---------- background ---------- */
+#bg{position:fixed;inset:0;z-index:-1;overflow:hidden}
+#bg>*{position:absolute;inset:0}
+.sky{background:linear-gradient(180deg,var(--sky-top) 0%,var(--sky-bot) 100%);transition:background 2s}
+.orb{inset:auto;width:70vmax;height:70vmax;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,214,150,.55) 0%,rgba(255,180,120,.18) 25%,transparent 60%);
+  transform:translate(-50%,-50%);left:50%;top:80%;transition:left 2s,top 2s,opacity 2s;pointer-events:none}
+.orb.moon{background:radial-gradient(circle,rgba(200,215,255,.22) 0%,rgba(160,180,255,.06) 25%,transparent 55%)}
+.stars{opacity:0;transition:opacity 3s;
+  background-image:radial-gradient(1px 1px at 12% 18%,#fff,transparent),radial-gradient(1px 1px at 27% 42%,#fff,transparent),
+  radial-gradient(1.4px 1.4px at 41% 12%,#fff,transparent),radial-gradient(1px 1px at 58% 33%,#fff,transparent),
+  radial-gradient(1px 1px at 72% 9%,#fff,transparent),radial-gradient(1.3px 1.3px at 86% 27%,#fff,transparent),
+  radial-gradient(1px 1px at 93% 51%,#fff,transparent),radial-gradient(1px 1px at 8% 61%,#fff,transparent),
+  radial-gradient(1px 1px at 35% 70%,#fff,transparent),radial-gradient(1.2px 1.2px at 64% 58%,#fff,transparent),
+  radial-gradient(1px 1px at 79% 74%,#fff,transparent),radial-gradient(1px 1px at 50% 88%,#fff,transparent)}
+.blobs{display:none;filter:blur(70px) saturate(1.2)}
+.blobs i{position:absolute;border-radius:50%;opacity:.8;animation:drift 26s ease-in-out infinite alternate}
+.blobs i:nth-child(1){width:55vmax;height:55vmax;left:-10%;top:-15%}
+.blobs i:nth-child(2){width:45vmax;height:45vmax;right:-12%;top:10%;animation-duration:32s;animation-delay:-8s}
+.blobs i:nth-child(3){width:50vmax;height:50vmax;left:25%;bottom:-30%;animation-duration:38s;animation-delay:-15s}
+@keyframes drift{from{transform:translate(0,0) scale(1)}to{transform:translate(8vw,6vh) scale(1.15)}}
+.photo{background-size:cover;background-position:center;display:none;transform:scale(1.04)}
+.dim{background:#000;opacity:0;display:none}
+.grain{opacity:.07;mix-blend-mode:overlay;pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+body:not(.bg-live) .orb, body:not(.bg-live) .stars{display:none}
+body.bg-aurora .sky{background:#071022} body.bg-aurora .blobs{display:block}
+body.bg-aurora .blobs i:nth-child(1){background:#1bd6a4} body.bg-aurora .blobs i:nth-child(2){background:#5b3cff} body.bg-aurora .blobs i:nth-child(3){background:#0a8fd6}
+body.bg-neon .sky{background:#12051e} body.bg-neon .blobs{display:block}
+body.bg-neon .blobs i:nth-child(1){background:#ff2e93} body.bg-neon .blobs i:nth-child(2){background:#00c2ff} body.bg-neon .blobs i:nth-child(3){background:#7a2cff}
+body.bg-hlbina .sky{background:radial-gradient(120% 90% at 20% 0%,#1b4f7a 0%,transparent 60%),radial-gradient(90% 80% at 100% 100%,#0e6d6d 0%,transparent 55%),#061423}
+body.bg-mach .sky{background:radial-gradient(100% 80% at 0% 100%,#4d6b2f 0%,transparent 60%),radial-gradient(80% 70% at 100% 0%,#2f5a4a 0%,transparent 60%),#16211a}
+body.bg-grafit .sky{background:linear-gradient(160deg,#34363c,#1d1e22)} body.bg-grafit .grain{opacity:.14}
+body.bg-color .sky{background:var(--solid,#1d2b4a)}
+body.bg-image .photo, body.bg-image .dim{display:block}
+@media (prefers-reduced-motion:reduce){.blobs i{animation:none}.sky,.orb,.stars{transition:none}}
+
+/* ---------- layout ---------- */
+.page{min-height:100%;display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,380px);gap:48px;
+  padding:clamp(24px,6vh,72px) clamp(20px,6vw,88px) 96px;max-width:1500px;margin:0 auto;align-items:start}
+.main{min-width:0;padding-top:clamp(0px,4vh,48px)}
+.side{display:flex;flex-direction:column;gap:16px}
+@media (max-width:900px){.page{grid-template-columns:1fr;gap:32px}}
+
+.greet{font-size:clamp(1.15rem,1.6vw,1.45rem);font-weight:450;color:var(--fg2);margin:0}
+.clock{font-size:clamp(5.5rem,15vw,12.5rem);line-height:.86;letter-spacing:-.045em;margin:.08em 0 .12em -.04em;
+  font-variant-numeric:tabular-nums;font-variation-settings:"opsz" 96;text-shadow:0 2px 30px rgba(0,0,0,.18);
+  transition:font-weight 1.2s}
+.clock .sep{opacity:.55;margin:0 -.02em}
+.clock .sec{font-size:.28em;letter-spacing:-.01em;margin-left:.15em;color:var(--fg2);vertical-align:.9em}
+.date{font-size:clamp(1.05rem,1.4vw,1.3rem);color:var(--fg2);display:flex;gap:18px;flex-wrap:wrap;align-items:baseline}
+.date .wk{color:var(--fg3);font-size:.9em}
+
+/* search */
+.search{margin-top:clamp(28px,5vh,48px);max-width:640px;display:flex;align-items:center;gap:6px;
+  background:var(--panel);backdrop-filter:blur(18px) saturate(1.3);-webkit-backdrop-filter:blur(18px) saturate(1.3);
+  border:1px solid var(--line);border-radius:999px;padding:6px 6px 6px 8px;transition:border-color .2s,background .2s}
+.search:focus-within{border-color:rgba(255,255,255,.4);background:rgba(10,14,30,.5)}
+body.light .search:focus-within{background:rgba(255,255,255,.65);border-color:rgba(0,0,0,.25)}
+.engine{border:0;background:rgba(255,255,255,.1);border-radius:999px;padding:8px 14px;font-size:.88rem;font-weight:550;white-space:nowrap}
+body.light .engine{background:rgba(0,0,0,.07)}
+.engine:hover{background:rgba(255,255,255,.18)}
+.search input{flex:1;min-width:0;border:0;background:transparent;outline:none;font-size:1.08rem;padding:10px 8px}
+.search input::placeholder{color:var(--fg3)}
+.kbd{font-size:.78rem;color:var(--fg3);border:1px solid var(--line);border-radius:6px;padding:1px 7px;margin-right:10px}
+.hint{font-size:.85rem;color:var(--fg3);margin:10px 0 0 22px;min-height:1.3em}
+
+/* links */
+.links{margin-top:clamp(28px,5vh,44px);display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px;max-width:760px}
+.tile{position:relative;display:flex;flex-direction:column;align-items:center;gap:9px;padding:14px 6px 12px;
+  border-radius:18px;text-decoration:none;color:var(--fg);transition:background .15s}
+.tile:hover,.tile:focus-visible{background:var(--panel)}
+.tile .ico{position:relative;width:52px;height:52px;border-radius:15px;display:grid;place-items:center;
+  background:rgba(255,255,255,.9);box-shadow:0 6px 18px rgba(0,0,0,.18);overflow:hidden}
+.tile .ico b{font-size:1.35rem;font-weight:700;color:#1b2140}
+.tile .ico img{position:absolute;width:30px;height:30px;inset:0;margin:auto}
+.tile .t{font-size:.86rem;color:var(--fg2);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tile .edit{position:absolute;top:4px;right:4px;width:26px;height:26px;border-radius:50%;border:0;
+  background:var(--panel-strong);color:#fff;display:grid;place-items:center;opacity:0;transition:opacity .15s}
+.tile:hover .edit,.tile .edit:focus-visible{opacity:1}
+.tile.dragging{opacity:.35}
+.tile.over{background:var(--panel);outline:1px dashed var(--fg3)}
+.tile.add .ico{background:transparent;border:1.5px dashed var(--fg3);box-shadow:none;color:var(--fg2)}
+.tile.add{border:0;background:none;font:inherit}
+
+/* panels */
+.panel{background:var(--panel);backdrop-filter:blur(22px) saturate(1.35);-webkit-backdrop-filter:blur(22px) saturate(1.35);
+  border:1px solid var(--line);border-radius:24px;padding:20px 22px}
+.wx-now{display:grid;grid-template-columns:auto 1fr;gap:4px 16px;align-items:center}
+.wx-icon{width:62px;height:62px;grid-row:span 2;color:var(--accent)}
+.wx-temp{font-size:3.3rem;font-weight:300;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.wx-desc{color:var(--fg2)}
+.wx-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:14px}
+.wx-city{font-weight:600;font-size:1.02rem;border:0;background:none;padding:0;text-align:left}
+.wx-city:hover{text-decoration:underline;text-underline-offset:3px}
+.wx-upd{font-size:.78rem;color:var(--fg3);border:0;background:none;padding:0}
+.wx-upd:hover{color:var(--fg2)}
+.wx-facts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:18px 0 6px;font-size:.84rem;color:var(--fg2)}
+.wx-facts span b{display:block;color:var(--fg);font-weight:550;font-size:.98rem;font-variant-numeric:tabular-nums}
+.spark{width:100%;height:64px;display:block;margin-top:12px}
+.spark-axis{display:flex;justify-content:space-between;font-size:.74rem;color:var(--fg3);margin-top:2px}
+.days{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.day{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:.84rem}
+.day .dn{color:var(--fg2)} .day svg{width:26px;height:26px;color:var(--fg)}
+.day .mx{font-weight:600;font-variant-numeric:tabular-nums} .day .mn{color:var(--fg3);font-variant-numeric:tabular-nums}
+.day .pp{font-size:.72rem;color:#8fd0ff;min-height:1em}
+body.light .day .pp{color:#1d62a8}
+.wx-empty p{margin:0 0 14px;color:var(--fg2)}
+
+.notes h2{font-size:1rem;font-weight:600;margin:0 0 8px}
+.notes textarea{width:100%;min-height:120px;resize:vertical;border:0;background:transparent;outline:none;
+  font-size:.95rem;line-height:1.55;color:var(--fg);padding:0}
+.notes textarea::placeholder{color:var(--fg3)}
+
+.btn{border:1px solid var(--line);background:rgba(255,255,255,.1);border-radius:12px;padding:9px 16px;font-weight:550;font-size:.92rem}
+.btn:hover{background:rgba(255,255,255,.18)}
+.btn.primary{background:var(--accent);color:#1d1606;border-color:transparent}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.danger{color:#ff9d9d}
+
+.fab{position:fixed;right:22px;bottom:22px;width:48px;height:48px;border-radius:50%;border:1px solid var(--line);
+  background:var(--panel);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);display:grid;place-items:center;transition:transform .3s}
+.fab:hover{transform:rotate(45deg)}
+.fab svg{width:22px;height:22px}
+
+/* drawer (always dark for legibility) */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.35);opacity:0;pointer-events:none;transition:opacity .25s;z-index:20}
+.scrim.open{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(430px,100%);z-index:21;background:var(--panel-strong);color:#fff;
+  backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);border-left:1px solid rgba(255,255,255,.1);
+  transform:translateX(100%);transition:transform .32s cubic-bezier(.2,.8,.2,1);overflow-y:auto;padding:26px 26px 60px;
+  --fg:#fff;--fg2:rgba(255,255,255,.74);--fg3:rgba(255,255,255,.5);--line:rgba(255,255,255,.14);--accent:#ffcf7a}
+.drawer.open{transform:none}
+.drawer h2{font-size:1.5rem;font-weight:650;margin:0 0 4px;letter-spacing:-.01em}
+.drawer section{padding:20px 0;border-bottom:1px solid var(--line)}
+.drawer section:last-child{border:0}
+.drawer h3{font-size:1.02rem;font-weight:600;margin:0 0 12px}
+.drawer .close{position:absolute;top:18px;right:18px;border:0;background:rgba(255,255,255,.08);width:36px;height:36px;border-radius:50%}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:12px;font-size:.88rem;color:var(--fg2)}
+.inp{width:100%;background:rgba(255,255,255,.07);border:1px solid var(--line);border-radius:12px;padding:10px 12px;color:#fff;outline:none}
+.inp:focus{border-color:var(--accent)}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.toggle{display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:.95rem}
+.toggle input{width:40px;height:22px;appearance:none;background:rgba(255,255,255,.18);border-radius:999px;position:relative;cursor:pointer;transition:background .2s}
+.toggle input::after{content:"";position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:3px;left:3px;transition:transform .2s}
+.toggle input:checked{background:var(--accent)} .toggle input:checked::after{transform:translateX(18px)}
+.swatches{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.sw{border:2px solid transparent;border-radius:14px;padding:0;background:none;display:flex;flex-direction:column;gap:5px;align-items:stretch;font-size:.78rem;color:var(--fg2)}
+.sw span{display:block;aspect-ratio:4/3;border-radius:11px}
+.sw[aria-pressed="true"]{border-color:var(--accent)} .sw[aria-pressed="true"] em{color:#fff}
+.sw em{font-style:normal;padding:0 4px 4px}
+.subopts{margin-top:14px;display:none}
+.subopts.show{display:block}
+input[type=range]{width:100%;accent-color:var(--accent)}
+input[type=color]{width:48px;height:36px;border:1px solid var(--line);border-radius:10px;background:none;padding:2px}
+.results{display:flex;flex-direction:column;gap:4px;margin-top:8px}
+.results button{text-align:left;border:0;background:rgba(255,255,255,.06);border-radius:10px;padding:9px 12px;font-size:.9rem}
+.results button:hover{background:rgba(255,255,255,.14)}
+.results small{color:var(--fg3)}
+.msg{font-size:.85rem;color:var(--fg3);margin-top:8px;min-height:1.2em}
+.help{font-size:.84rem;color:var(--fg3);line-height:1.6;margin:0}
+.help code{background:rgba(255,255,255,.08);padding:1px 6px;border-radius:5px}
+
+dialog{border:1px solid rgba(255,255,255,.12);border-radius:22px;background:var(--panel-strong);color:#fff;padding:24px;width:min(400px,92vw);
+  backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);--fg2:rgba(255,255,255,.74);--line:rgba(255,255,255,.14);--accent:#ffcf7a}
+dialog::backdrop{background:rgba(0,0,0,.4)}
+dialog h2{margin:0 0 16px;font-size:1.3rem;font-weight:650}
+dialog .actions{display:flex;gap:8px;margin-top:8px}
+dialog .actions .sp{flex:1}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+</head>
+<body class="bg-live">
+
+<div id="bg" aria-hidden="true">
+  <div class="sky"></div><div class="stars"></div><div class="orb"></div>
+  <div class="blobs"><i></i><i></i><i></i></div>
+  <div class="photo"></div><div class="dim"></div><div class="grain"></div>
+</div>
+
+<div class="page">
+  <main class="main">
+    <p class="greet" id="greet"></p>
+    <div class="clock" id="clock" aria-live="off"></div>
+    <div class="date"><span id="date"></span><span class="wk" id="week"></span></div>
+
+    <form class="search" id="searchForm" role="search">
+      <button type="button" class="engine" id="engineBtn" title="Zmeniť vyhľadávač"></button>
+      <label class="sr" for="q">Hľadať</label>
+      <input id="q" autocomplete="off" placeholder="Hľadaj alebo zadaj adresu">
+      <span class="kbd" aria-hidden="true">/</span>
+    </form>
+    <p class="hint" id="hint">Skratky: <b>yt</b> YouTube, <b>w</b> Wikipédia, <b>d</b> DuckDuckGo, <b>g</b> Google — napr. „yt lofi“</p>
+
+    <nav class="links" id="links" aria-label="Obľúbené stránky"></nav>
+  </main>
+
+  <aside class="side">
+    <div class="panel" id="wx"></div>
+    <div class="panel notes">
+      <h2><label for="notes">Poznámky</label></h2>
+      <textarea id="notes" placeholder="Čo nechceš zabudnúť…"></textarea>
+    </div>
+  </aside>
+</div>
+
+<button class="fab" id="openSettings" aria-label="Nastavenia">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+</button>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-label="Nastavenia" aria-hidden="true">
+  <button class="close" id="closeSettings" aria-label="Zavrieť">✕</button>
+  <h2>Nastavenia</h2>
+
+  <section>
+    <h3>Ty a hodiny</h3>
+    <label class="field">Meno v pozdrave<input class="inp" id="setName" maxlength="40"></label>
+    <label class="toggle">24-hodinový formát<input type="checkbox" id="set24"></label>
+    <label class="toggle">Zobraziť sekundy<input type="checkbox" id="setSec"></label>
+  </section>
+
+  <section id="bgSection">
+    <h3>Pozadie</h3>
+    <div class="swatches" id="swatches"></div>
+    <div class="subopts" id="optColor">
+      <div class="row"><input type="color" id="setColor" aria-label="Farba pozadia"><span class="help">Vyber vlastnú farbu</span></div>
+    </div>
+    <div class="subopts" id="optImage">
+      <label class="field">Adresa obrázka<input class="inp" id="setImgUrl" placeholder="https://…"></label>
+      <div class="row">
+        <button class="btn" type="button" id="useImgUrl">Použiť adresu</button>
+        <label class="btn">Nahrať z počítača<input type="file" id="setImgFile" accept="image/*" hidden></label>
+      </div>
+      <label class="field" style="margin-top:14px">Stmavenie <span id="dimVal"></span><input type="range" id="setDim" min="0" max="80"></label>
+      <label class="field">Rozmazanie <span id="blurVal"></span><input type="range" id="setBlur" min="0" max="24"></label>
+      <p class="msg" id="imgMsg"></p>
+    </div>
+  </section>
+
+  <section id="citySection">
+    <h3>Počasie</h3>
+    <form class="row" id="cityForm">
+      <input class="inp" id="cityQ" placeholder="Napíš mesto, napr. Bratislava" style="flex:1" aria-label="Mesto">
+      <button class="btn primary">Hľadať</button>
+    </form>
+    <div class="results" id="cityResults"></div>
+    <div class="row" style="margin-top:10px"><button class="btn" type="button" id="geoBtn">Použiť moju polohu</button></div>
+    <p class="msg" id="cityMsg"></p>
+  </section>
+
+  <section>
+    <h3>Záloha</h3>
+    <p class="help" style="margin-bottom:12px">Nastavenia sú uložené len v tomto prehliadači. Zálohu si stiahni ako súbor a obnov ju hocikde.</p>
+    <div class="row">
+      <button class="btn" type="button" id="exportBtn">Stiahnuť zálohu</button>
+      <label class="btn">Obnoviť zo zálohy<input type="file" id="importFile" accept="application/json" hidden></label>
+      <button class="btn danger" type="button" id="resetBtn">Obnoviť predvolené</button>
+    </div>
+    <p class="msg" id="backupMsg"></p>
+  </section>
+
+  <section>
+    <h3>Klávesové skratky</h3>
+    <p class="help"><code>/</code> vyhľadávanie &nbsp; <code>N</code> pridať odkaz &nbsp; <code>,</code> nastavenia &nbsp; <code>Esc</code> zavrieť<br>
+    Odkazy môžeš preusporiadať potiahnutím myšou.</p>
+  </section>
+</aside>
+
+<dialog id="linkDlg">
+  <form method="dialog" id="linkForm">
+    <h2 id="linkDlgTitle">Pridať odkaz</h2>
+    <label class="field">Názov<input class="inp" id="linkTitle" required maxlength="40"></label>
+    <label class="field">Adresa<input class="inp" id="linkUrl" required placeholder="napr. youtube.com"></label>
+    <div class="actions">
+      <button class="btn danger" type="button" id="linkDel">Odstrániť</button>
+      <span class="sp"></span>
+      <button class="btn" type="button" id="linkCancel">Zrušiť</button>
+      <button class="btn primary" type="submit">Uložiť</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+const KEY = 'epoNewTab.v1', IMGKEY = 'epoNewTab.bgimg', WXKEY = 'epoNewTab.wx';
+
+const DEFAULTS = {
+  name: 'EPO', h24: true, seconds: false, engine: 'google',
+  bg: { type: 'live', color: '#1d2b4a', imageUrl: '', dim: 30, blur: 0 },
+  city: null,
+  links: [
+    { title: 'YouTube', url: 'https://www.youtube.com' },
+    { title: 'GitHub', url: 'https://github.com' },
+    { title: 'Gmail', url: 'https://mail.google.com' },
+    { title: 'SME', url: 'https://www.sme.sk' },
+    { title: 'Wikipédia', url: 'https://sk.wikipedia.org' },
+  ],
+  notes: ''
+};
+
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(KEY));
+    if (!s) return structuredClone(DEFAULTS);
+    return { ...structuredClone(DEFAULTS), ...s, bg: { ...DEFAULTS.bg, ...(s.bg || {}) } };
+  } catch { return structuredClone(DEFAULTS); }
+}
+let S = load();
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { console.warn(e); } }
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* ================= clock ================= */
+const fmtDate = new Intl.DateTimeFormat('sk-SK', { weekday: 'long', day: 'numeric', month: 'long' });
+function isoWeek(d) {
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = t.getUTCDay() || 7; t.setUTCDate(t.getUTCDate() + 4 - day);
+  const y0 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+  return Math.ceil(((t - y0) / 864e5 + 1) / 7);
+}
+let lastMinute = -1;
+function tick() {
+  const now = new Date();
+  let h = now.getHours();
+  const m = String(now.getMinutes()).padStart(2, '0');
+  let suffix = '';
+  if (!S.h24) { suffix = h < 12 ? ' dop.' : ' pop.'; h = h % 12 || 12; }
+  const hh = S.h24 ? String(h).padStart(2, '0') : String(h);
+  const sec = S.seconds ? `<span class="sec">${String(now.getSeconds()).padStart(2, '0')}</span>` : (suffix ? `<span class="sec">${suffix.trim()}</span>` : '');
+  $('#clock').innerHTML = `${hh}<span class="sep">:</span>${m}${sec}`;
+
+  if (now.getMinutes() !== lastMinute) {
+    lastMinute = now.getMinutes();
+    // weight of the clock follows the day: thin at midnight, heavy at noon
+    const frac = (now.getHours() * 60 + now.getMinutes()) / 1440;
+    $('#clock').style.fontWeight = Math.round(200 + 600 * Math.sin(Math.PI * frac));
+    const hr = now.getHours();
+    const g = hr >= 5 && hr < 10 ? 'Dobré ráno' : hr >= 10 && hr < 18 ? 'Dobrý deň' : hr >= 18 && hr < 22 ? 'Dobrý večer' : 'Dobrú noc';
+    $('#greet').textContent = S.name.trim() ? `${g}, ${S.name.trim()}.` : `${g}.`;
+    const d = fmtDate.format(now);
+    $('#date').textContent = d.charAt(0).toUpperCase() + d.slice(1);
+    $('#week').textContent = `${isoWeek(now)}. týždeň`;
+    updateSky(now);
+  }
+}
+function startClock() {
+  tick();
+  setTimeout(() => { tick(); setInterval(tick, 1000); }, 1000 - (Date.now() % 1000));
+}
+
+/* ================= live sky ================= */
+const SKY = [
+  [-1, '#040716', '#0f1734'],
+  [-0.3, '#0d1030', '#2c2352'],
+  [-0.05, '#2a2458', '#a8566e'],
+  [0.06, '#3b4f95', '#f09a62'],
+  [0.25, '#2f63b0', '#8fb6de'],
+  [1, '#1b58b3', '#5f9ddf'],
+];
+const hex2rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const mix = (a, b, t) => { const A = hex2rgb(a), B = hex2rgb(b); return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(',')})`; };
+function skyColors(e) {
+  for (let i = 0; i < SKY.length - 1; i++) {
+    const [e0, t0, b0] = SKY[i], [e1, t1, b1] = SKY[i + 1];
+    if (e >= e0 && e <= e1) { const t = (e - e0) / (e1 - e0); return [mix(t0, t1, t), mix(b0, b1, t)]; }
+  }
+  return [SKY.at(-1)[1], SKY.at(-1)[2]];
+}
+function sunTimes(now) {
+  if (WX?.daily?.sunrise?.[0]) {
+    const r = new Date(WX.daily.sunrise[0]), s = new Date(WX.daily.sunset[0]);
+    if (!isNaN(r) && !isNaN(s)) return [r, s];
+  }
+  const r = new Date(now); r.setHours(6, 30, 0, 0);
+  const s = new Date(now); s.setHours(18, 30, 0, 0);
+  return [r, s];
+}
+function updateSky(now = new Date()) {
+  if (S.bg.type !== 'live') return;
+  const [rise, set] = sunTimes(now);
+  const orb = $('.orb');
+  let e, x;
+  if (now >= rise && now <= set) {
+    const p = (now - rise) / (set - rise);
+    e = Math.sin(Math.PI * p); x = 8 + p * 84;
+    orb.classList.remove('moon');
+  } else {
+    const nightLen = 864e5 - (set - rise);
+    let since = now > set ? now - set : now - (set - 864e5);
+    const q = Math.min(1, Math.max(0, since / nightLen));
+    e = -Math.sin(Math.PI * q); x = 8 + q * 84;
+    orb.classList.add('moon');
+  }
+  const [top, bot] = skyColors(e);
+  document.documentElement.style.setProperty('--sky-top', top);
+  document.documentElement.style.setProperty('--sky-bot', bot);
+  orb.style.left = x + '%';
+  orb.style.top = (88 - Math.abs(e) * 60) + '%';
+  $('.stars').style.opacity = e < -0.1 ? Math.min(1, (-e - 0.1) * 2) : 0;
+}
+
+/* ================= background ================= */
+const PRESETS = [
+  ['live', 'Živá obloha', 'linear-gradient(180deg,#2a2458,#f09a62)'],
+  ['aurora', 'Polárna žiara', 'radial-gradient(circle at 25% 30%,#1bd6a4,transparent 55%),radial-gradient(circle at 80% 60%,#5b3cff,transparent 55%),#071022'],
+  ['neon', 'Neón', 'radial-gradient(circle at 25% 30%,#ff2e93,transparent 55%),radial-gradient(circle at 80% 60%,#00c2ff,transparent 55%),#12051e'],
+  ['hlbina', 'Hlbina', 'radial-gradient(circle at 20% 0%,#1b4f7a,transparent 70%),radial-gradient(circle at 100% 100%,#0e6d6d,transparent 60%),#061423'],
+  ['mach', 'Mach', 'radial-gradient(circle at 0% 100%,#4d6b2f,transparent 70%),radial-gradient(circle at 100% 0%,#2f5a4a,transparent 70%),#16211a'],
+  ['grafit', 'Grafit', 'linear-gradient(160deg,#34363c,#1d1e22)'],
+  ['color', 'Farba', 'conic-gradient(from 90deg,#ff6b6b,#ffd93d,#6bcb77,#4d96ff,#c77dff,#ff6b6b)'],
+  ['image', 'Obrázok', 'repeating-linear-gradient(45deg,rgba(255,255,255,.12) 0 8px,rgba(255,255,255,.04) 8px 16px),#2a2f45'],
+];
+function luminance(hex) { const [r, g, b] = hex2rgb(hex).map(v => { v /= 255; return v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; }); return .2126 * r + .7152 * g + .0722 * b; }
+function applyBg() {
+  const b = S.bg, body = document.body;
+  body.className = body.className.replace(/\bbg-\S+/g, '').replace(/\blight\b/g, '').trim();
+  body.classList.add('bg-' + b.type);
+  if (b.type === 'color') {
+    body.style.setProperty('--solid', b.color);
+    if (luminance(b.color) > .45) body.classList.add('light');
+  }
+  if (b.type === 'image') {
+    let src = b.imageUrl;
+    if (!src) { try { src = localStorage.getItem(IMGKEY) || ''; } catch { } }
+    $('.photo').style.backgroundImage = src ? `url("${src.replace(/"/g, '%22')}")` : 'none';
+    $('.photo').style.filter = b.blur ? `blur(${b.blur}px)` : 'none';
+    $('.dim').style.opacity = b.dim / 100;
+  }
+  $('#optColor').classList.toggle('show', b.type === 'color');
+  $('#optImage').classList.toggle('show', b.type === 'image');
+  document.querySelectorAll('.sw').forEach(el => el.setAttribute('aria-pressed', el.dataset.t === b.type));
+  if (b.type === 'live') updateSky(); 
+}
+function buildSwatches() {
+  $('#swatches').innerHTML = PRESETS.map(([t, n, css]) =>
+    `<button type="button" class="sw" data-t="${t}" aria-pressed="false"><span style="background:${css}"></span><em>${n}</em></button>`).join('');
+  $('#swatches').addEventListener('click', e => {
+    const sw = e.target.closest('.sw'); if (!sw) return;
+    S.bg.type = sw.dataset.t; save(); applyBg();
+  });
+}
+async function fileToDataURL(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+    const k = Math.min(1, 2400 / Math.max(img.width, img.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', .85);
+  } finally { URL.revokeObjectURL(url); }
+}
+
+/* ================= search ================= */
+const ENGINES = {
+  google: ['Google', 'https://www.google.com/search?q='],
+  ddg: ['DuckDuckGo', 'https://duckduckgo.com/?q='],
+  bing: ['Bing', 'https://www.bing.com/search?q='],
+  youtube: ['YouTube', 'https://www.youtube.com/results?search_query='],
+};
+const PREFIX = { yt: 'youtube', g: 'google', d: 'ddg', b: 'bing', w: 'wiki' };
+function renderEngine() { $('#engineBtn').textContent = ENGINES[S.engine][0]; }
+$('#engineBtn').addEventListener('click', () => {
+  const keys = Object.keys(ENGINES); S.engine = keys[(keys.indexOf(S.engine) + 1) % keys.length];
+  save(); renderEngine(); $('#q').focus();
+});
+$('#searchForm').addEventListener('submit', e => {
+  e.preventDefault();
+  let q = $('#q').value.trim(); if (!q) return;
+  if (/^[a-z][\w+.-]*:\/\//i.test(q)) { location.href = q; return; }
+  if (!/\s/.test(q) && /^[\w-]+(\.[\w-]+)+(:\d+)?(\/\S*)?$/.test(q)) { location.href = 'https://' + q; return; }
+  const m = q.match(/^(\w+)\s+(.+)$/);
+  let eng = S.engine;
+  if (m && PREFIX[m[1].toLowerCase()]) { eng = PREFIX[m[1].toLowerCase()]; q = m[2]; }
+  if (eng === 'wiki') { location.href = 'https://sk.wikipedia.org/w/index.php?search=' + encodeURIComponent(q); return; }
+  location.href = ENGINES[eng][1] + encodeURIComponent(q);
+});
+
+/* ================= links ================= */
+const hostOf = u => { try { return new URL(u).hostname; } catch { return ''; } };
+const normUrl = u => { u = u.trim(); return /^[a-z][\w+.-]*:/i.test(u) ? u : 'https://' + u; };
+let dragIdx = null;
+function renderLinks() {
+  const g = $('#links'); g.innerHTML = '';
+  S.links.forEach((l, i) => {
+    const a = document.createElement('a');
+    a.className = 'tile'; a.href = l.url; a.draggable = true; a.title = l.url;
+    const host = hostOf(l.url);
+    a.innerHTML = `<span class="ico"><b>${esc((l.title || host || '?').charAt(0).toUpperCase())}</b>${host ? `<img alt="" loading="lazy" src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=64">` : ''}</span>
+      <span class="t">${esc(l.title)}</span>
+      <button type="button" class="edit" aria-label="Upraviť ${esc(l.title)}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/></svg></button>`;
+    const img = a.querySelector('img'); if (img) img.onerror = () => img.remove();
+    a.querySelector('.edit').addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); openLink(i); });
+    a.addEventListener('dragstart', e => { dragIdx = i; a.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', l.url); });
+    a.addEventListener('dragend', () => { a.classList.remove('dragging'); document.querySelectorAll('.tile.over').forEach(t => t.classList.remove('over')); });
+    a.addEventListener('dragover', e => { if (dragIdx === null) return; e.preventDefault(); a.classList.add('over'); });
+    a.addEventListener('dragleave', () => a.classList.remove('over'));
+    a.addEventListener('drop', e => {
+      e.preventDefault(); if (dragIdx === null || dragIdx === i) return;
+      const [moved] = S.links.splice(dragIdx, 1); S.links.splice(i, 0, moved);
+      dragIdx = null; save(); renderLinks();
+    });
+    g.appendChild(a);
+  });
+  const add = document.createElement('button');
+  add.type = 'button'; add.className = 'tile add';
+  add.innerHTML = `<span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="t">Pridať</span>`;
+  add.addEventListener('click', () => openLink(-1));
+  g.appendChild(add);
+}
+let editIdx = -1;
+function openLink(i) {
+  editIdx = i;
+  const l = S.links[i];
+  $('#linkDlgTitle').textContent = l ? 'Upraviť odkaz' : 'Pridať odkaz';
+  $('#linkTitle').value = l ? l.title : '';
+  $('#linkUrl').value = l ? l.url : '';
+  $('#linkDel').hidden = !l;
+  $('#linkDlg').showModal();
+  (l ? $('#linkTitle') : $('#linkUrl')).focus();
+}
+$('#linkUrl').addEventListener('blur', () => {
+  if ($('#linkTitle').value.trim()) return;
+  const h = hostOf(normUrl($('#linkUrl').value)).replace(/^www\./, '');
+  if (h) { const n = h.split('.')[0]; $('#linkTitle').value = n.charAt(0).toUpperCase() + n.slice(1); }
+});
+$('#linkForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const item = { title: $('#linkTitle').value.trim(), url: normUrl($('#linkUrl').value) };
+  if (!item.title || !hostOf(item.url) && !item.url.startsWith('file:')) { $('#linkUrl').focus(); return; }
+  if (editIdx >= 0) S.links[editIdx] = item; else S.links.push(item);
+  save(); renderLinks(); $('#linkDlg').close();
+});
+$('#linkDel').addEventListener('click', () => { S.links.splice(editIdx, 1); save(); renderLinks(); $('#linkDlg').close(); });
+$('#linkCancel').addEventListener('click', () => $('#linkDlg').close());
+
+/* ================= weather ================= */
+let WX = null;
+const WMO = {
+  0: 'Jasno', 1: 'Prevažne jasno', 2: 'Polojasno', 3: 'Zamračené', 45: 'Hmla', 48: 'Hmla s námrazou',
+  51: 'Slabé mrholenie', 53: 'Mrholenie', 55: 'Husté mrholenie', 56: 'Mrznúce mrholenie', 57: 'Mrznúce mrholenie',
+  61: 'Slabý dážď', 63: 'Dážď', 65: 'Silný dážď', 66: 'Mrznúci dážď', 67: 'Mrznúci dážď',
+  71: 'Slabé sneženie', 73: 'Sneženie', 75: 'Silné sneženie', 77: 'Snehové zrná',
+  80: 'Prehánky', 81: 'Silné prehánky', 82: 'Prívalové prehánky', 85: 'Snehové prehánky', 86: 'Silné snehové prehánky',
+  95: 'Búrka', 96: 'Búrka s krupobitím', 99: 'Silná búrka s krupobitím'
+};
+const CLOUD = 'M7 17h10a3.6 3.6 0 0 0 .4-7.2A5.5 5.5 0 0 0 6.7 10.6 3.2 3.2 0 0 0 7 17z';
+const CLOUD_HI = 'M7 14h10a3.4 3.4 0 0 0 .4-6.8A5.3 5.3 0 0 0 6.7 7.9 3.1 3.1 0 0 0 7 14z';
+function wxIcon(code, day = 1) {
+  const s = (inner) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+  const sun = (cx, cy, r) => `<circle cx="${cx}" cy="${cy}" r="${r}"/>` + [0, 45, 90, 135, 180, 225, 270, 315].map(a => {
+    const rad = a * Math.PI / 180, r1 = r + 2, r2 = r + 3.6;
+    return `<path d="M${(cx + Math.cos(rad) * r1).toFixed(1)} ${(cy + Math.sin(rad) * r1).toFixed(1)}L${(cx + Math.cos(rad) * r2).toFixed(1)} ${(cy + Math.sin(rad) * r2).toFixed(1)}"/>`;
+  }).join('');
+  const moon = `<path d="M19 14.5A7.5 7.5 0 0 1 9.5 5a7.5 7.5 0 1 0 9.5 9.5z"/>`;
+  if (code === 0) return s(day ? sun(12, 12, 4) : moon);
+  if (code <= 2) return s((day ? `<g transform="translate(-3 -3) scale(.8)">${sun(12, 12, 3.6)}</g>` : `<g transform="translate(-2 -3) scale(.65)">${moon}</g>`) + `<path d="${CLOUD}" transform="translate(2 2) scale(.92)"/>`);
+  if (code === 3) return s(`<path d="${CLOUD}"/>`);
+  if (code === 45 || code === 48) return s(`<path d="M4 9h16M6 13h12M4 17h16M8 5h8"/>`);
+  if (code >= 95) return s(`<path d="${CLOUD_HI}"/><path d="M12.5 15l-2 3.5h3l-2 3.5"/>`);
+  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return s(`<path d="${CLOUD_HI}"/><path d="M8 18v.01M12 20v.01M16 18v.01M10 22v.01M14 22v.01" stroke-width="2.4"/>`);
+  if (code >= 51 && code <= 57) return s(`<path d="${CLOUD_HI}"/><path d="M8 17.5v1M12 17.5v1M16 17.5v1M10 20.5v1M14 20.5v1"/>`);
+  return s(`<path d="${CLOUD_HI}"/><path d="M8.5 17l-1 3M12.5 17l-1 3M16.5 17l-1 3"/>`);
+}
+const hm = iso => iso ? iso.slice(11, 16) : '–';
+function renderWxEmpty() {
+  $('#wx').innerHTML = `<div class="wx-empty"><p>Zadaj svoje mesto a uvidíš tu aktuálne počasie a predpoveď.</p><button class="btn primary" type="button" id="wxSet">Nastaviť mesto</button></div>`;
+  $('#wxSet').onclick = () => openSettings('#citySection');
+}
+function renderWx(stale) {
+  const c = WX.current, d = WX.daily, h = WX.hourly;
+  const start = Math.max(0, h.time.findIndex(t => t >= c.time.slice(0, 13) + ':00'));
+  const temps = h.temperature_2m.slice(start, start + 25), pp = h.precipitation_probability.slice(start, start + 25);
+  const W = 300, H = 64, pad = 6;
+  const mn = Math.min(...temps), mx = Math.max(...temps), rng = Math.max(1, mx - mn);
+  const pts = temps.map((t, i) => [i / (temps.length - 1) * W, pad + (1 - (t - mn) / rng) * (H - pad * 2 - 14)]);
+  const line = pts.map(p => p.map(v => v.toFixed(1)).join(',')).join(' ');
+  const bars = pp.map((p, i) => p > 5 ? `<rect x="${(i / (temps.length - 1) * W - 3).toFixed(1)}" y="${H - p / 100 * 14}" width="6" height="${p / 100 * 14}" rx="1.5" fill="#8fd0ff" opacity=".7"/>` : '').join('');
+  const hiI = temps.indexOf(mx), loI = temps.indexOf(mn);
+  const hourAt = k => h.time[start + k]?.slice(11, 13) + ':00';
+  const days = d.time.slice(0, 5).map((t, i) => {
+    const dn = i === 0 ? 'Dnes' : new Intl.DateTimeFormat('sk-SK', { weekday: 'short' }).format(new Date(t + 'T12:00'));
+    const p = d.precipitation_probability_max?.[i];
+    return `<div class="day"><span class="dn">${dn.charAt(0).toUpperCase() + dn.slice(1)}</span>${wxIcon(d.weather_code[i], 1)}
+      <span class="mx">${Math.round(d.temperature_2m_max[i])}°</span><span class="mn">${Math.round(d.temperature_2m_min[i])}°</span>
+      <span class="pp">${p >= 20 ? p + ' %' : ''}</span></div>`;
+  }).join('');
+  const upd = new Date(JSON.parse(localStorage.getItem(WXKEY) || '{}').ts || Date.now());
+  $('#wx').innerHTML = `
+    <div class="wx-head">
+      <button class="wx-city" type="button" id="wxCity" title="Zmeniť mesto">${esc(S.city.name)}</button>
+      <button class="wx-upd" type="button" id="wxRefresh" title="Obnoviť">${stale ? 'Offline, ' : ''}${upd.toTimeString().slice(0, 5)} ↻</button>
+    </div>
+    <div class="wx-now">
+      <div class="wx-icon">${wxIcon(c.weather_code, c.is_day)}</div>
+      <div class="wx-temp">${Math.round(c.temperature_2m)}°</div>
+      <div class="wx-desc">${WMO[c.weather_code] || '—'}, pocitovo ${Math.round(c.apparent_temperature)}°</div>
+    </div>
+    <div class="wx-facts">
+      <span>Vietor<b>${Math.round(c.wind_speed_10m)} km/h</b></span>
+      <span>Vlhkosť<b>${Math.round(c.relative_humidity_2m)} %</b></span>
+      <span>Slnko<b>${hm(d.sunrise[0])}–${hm(d.sunset[0])}</b></span>
+    </div>
+    <svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Teplota na najbližších 24 hodín, od ${Math.round(mn)} do ${Math.round(mx)} stupňov">
+      <defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffcf7a" stop-opacity=".45"/><stop offset="1" stop-color="#ffcf7a" stop-opacity="0"/></linearGradient></defs>
+      ${bars}
+      <polygon points="0,${H - 14} ${line} ${W},${H - 14}" fill="url(#sg)"/>
+      <polyline points="${line}" fill="none" stroke="#ffcf7a" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+      <text x="${Math.min(W - 20, Math.max(4, pts[hiI][0] - 8))}" y="${pts[hiI][1] - 2 < 10 ? 10 : pts[hiI][1] - 3}" font-size="10" fill="currentColor" opacity=".8">${Math.round(mx)}°</text>
+    </svg>
+    <div class="spark-axis"><span>Teraz</span><span>${hourAt(6)}</span><span>${hourAt(12)}</span><span>${hourAt(18)}</span><span>${hourAt(24)}</span></div>
+    <div class="days">${days}</div>`;
+  $('#wxCity').onclick = () => openSettings('#citySection');
+  $('#wxRefresh').onclick = () => loadWeather(true);
+  updateSky();
+}
+async function loadWeather(force) {
+  if (!S.city) { WX = null; renderWxEmpty(); return; }
+  const { lat, lon } = S.city;
+  let cache = null; try { cache = JSON.parse(localStorage.getItem(WXKEY)); } catch { }
+  const same = cache && cache.lat === lat && cache.lon === lon;
+  if (!force && same && Date.now() - cache.ts < 20 * 60e3) { WX = cache.data; renderWx(); return; }
+  if (!WX) $('#wx').innerHTML = `<p class="wx-desc" style="margin:0">Načítavam počasie…</p>`;
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+    `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,is_day` +
+    `&hourly=temperature_2m,precipitation_probability&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max` +
+    `&timezone=auto&forecast_days=6`;
+  try {
+    const r = await fetch(url); if (!r.ok) throw new Error('HTTP ' + r.status);
+    WX = await r.json();
+    try { localStorage.setItem(WXKEY, JSON.stringify({ ts: Date.now(), lat, lon, data: WX })); } catch { }
+    renderWx();
+  } catch (e) {
+    if (same) { WX = cache.data; renderWx(true); }
+    else $('#wx').innerHTML = `<p class="wx-desc" style="margin:0 0 12px">Počasie sa nepodarilo načítať. Skontroluj pripojenie a skús znova.</p><button class="btn" type="button" id="wxRetry">Skúsiť znova</button>`,
+      $('#wxRetry').onclick = () => loadWeather(true);
+  }
+}
+$('#cityForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const q = $('#cityQ').value.trim(); if (!q) return;
+  $('#cityMsg').textContent = 'Hľadám…'; $('#cityResults').innerHTML = '';
+  try {
+    const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&language=sk&format=json`);
+    const j = await r.json();
+    if (!j.results?.length) { $('#cityMsg').textContent = 'Také mesto som nenašiel. Skús iný zápis.'; return; }
+    $('#cityMsg').textContent = '';
+    $('#cityResults').innerHTML = j.results.map((c, i) =>
+      `<button type="button" data-i="${i}">${esc(c.name)} <small>${esc([c.admin1, c.country].filter(Boolean).join(', '))}</small></button>`).join('');
+    $('#cityResults').onclick = ev => {
+      const b = ev.target.closest('button'); if (!b) return;
+      const c = j.results[b.dataset.i];
+      S.city = { name: c.name, lat: +c.latitude.toFixed(3), lon: +c.longitude.toFixed(3) };
+      save(); $('#cityResults').innerHTML = ''; $('#cityQ').value = '';
+      $('#cityMsg').textContent = `Mesto nastavené: ${c.name}`;
+      WX = null; loadWeather(true);
+    };
+  } catch { $('#cityMsg').textContent = 'Vyhľadávanie zlyhalo. Skontroluj pripojenie.'; }
+});
+$('#geoBtn').addEventListener('click', () => {
+  if (!navigator.geolocation) { $('#cityMsg').textContent = 'Prehliadač polohu nepodporuje.'; return; }
+  $('#cityMsg').textContent = 'Zisťujem polohu…';
+  navigator.geolocation.getCurrentPosition(p => {
+    S.city = { name: 'Moja poloha', lat: +p.coords.latitude.toFixed(3), lon: +p.coords.longitude.toFixed(3) };
+    save(); $('#cityMsg').textContent = 'Poloha nastavená.'; WX = null; loadWeather(true);
+  }, () => { $('#cityMsg').textContent = 'Polohu sa nepodarilo zistiť. Zadaj mesto ručne.'; }, { timeout: 10000 });
+});
+
+/* ================= notes ================= */
+let noteT;
+$('#notes').value = S.notes;
+$('#notes').addEventListener('input', () => { clearTimeout(noteT); noteT = setTimeout(() => { S.notes = $('#notes').value; save(); }, 300); });
+
+/* ================= settings ================= */
+function openSettings(focusSel) {
+  $('#drawer').classList.add('open'); $('#scrim').classList.add('open'); $('#drawer').setAttribute('aria-hidden', 'false');
+  if (focusSel) { $(focusSel).scrollIntoView({ block: 'start' }); if (focusSel === '#citySection') setTimeout(() => $('#cityQ').focus(), 300); }
+  else setTimeout(() => $('#closeSettings').focus(), 50);
+}
+function closeSettings() { $('#drawer').classList.remove('open'); $('#scrim').classList.remove('open'); $('#drawer').setAttribute('aria-hidden', 'true'); }
+$('#openSettings').onclick = () => openSettings();
+$('#closeSettings').onclick = closeSettings;
+$('#scrim').onclick = closeSettings;
+
+function fillSettings() {
+  $('#setName').value = S.name; $('#set24').checked = S.h24; $('#setSec').checked = S.seconds;
+  $('#setColor').value = S.bg.color; $('#setImgUrl').value = S.bg.imageUrl;
+  $('#setDim').value = S.bg.dim; $('#setBlur').value = S.bg.blur;
+  $('#dimVal').textContent = S.bg.dim + ' %'; $('#blurVal').textContent = S.bg.blur + ' px';
+}
+$('#setName').addEventListener('input', e => { S.name = e.target.value; save(); lastMinute = -1; tick(); });
+$('#set24').addEventListener('change', e => { S.h24 = e.target.checked; save(); tick(); });
+$('#setSec').addEventListener('change', e => { S.seconds = e.target.checked; save(); tick(); });
+$('#setColor').addEventListener('input', e => { S.bg.color = e.target.value; save(); applyBg(); });
+$('#setDim').addEventListener('input', e => { S.bg.dim = +e.target.value; $('#dimVal').textContent = S.bg.dim + ' %'; save(); applyBg(); });
+$('#setBlur').addEventListener('input', e => { S.bg.blur = +e.target.value; $('#blurVal').textContent = S.bg.blur + ' px'; save(); applyBg(); });
+$('#useImgUrl').addEventListener('click', () => {
+  S.bg.imageUrl = $('#setImgUrl').value.trim(); save(); applyBg();
+  $('#imgMsg').textContent = S.bg.imageUrl ? 'Obrázok nastavený.' : '';
+});
+$('#setImgFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return;
+  $('#imgMsg').textContent = 'Spracúvam obrázok…';
+  try {
+    const data = await fileToDataURL(f);
+    localStorage.setItem(IMGKEY, data);
+    S.bg.imageUrl = ''; $('#setImgUrl').value = ''; save(); applyBg();
+    $('#imgMsg').textContent = 'Obrázok nahratý.';
+  } catch { $('#imgMsg').textContent = 'Obrázok je príliš veľký na uloženie. Skús menší alebo použi adresu.'; }
+  e.target.value = '';
+});
+
+$('#exportBtn').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `nova-karta-zaloha-${new Date().toISOString().slice(0, 10)}.json`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  $('#backupMsg').textContent = 'Záloha stiahnutá.';
+});
+$('#importFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const d = JSON.parse(await f.text());
+    if (!Array.isArray(d.links)) throw 0;
+    S = { ...structuredClone(DEFAULTS), ...d, bg: { ...DEFAULTS.bg, ...(d.bg || {}) } };
+    save(); init(); $('#backupMsg').textContent = 'Záloha obnovená.';
+  } catch { $('#backupMsg').textContent = 'Tento súbor nie je platná záloha.'; }
+  e.target.value = '';
+});
+$('#resetBtn').addEventListener('click', () => {
+  if (!confirm('Obnoviť všetky nastavenia na predvolené? Odkazy aj poznámky sa vymažú.')) return;
+  try { localStorage.removeItem(KEY); localStorage.removeItem(IMGKEY); localStorage.removeItem(WXKEY); } catch { }
+  S = structuredClone(DEFAULTS); WX = null; init(); $('#backupMsg').textContent = 'Nastavenia obnovené.';
+});
+
+/* ================= keyboard ================= */
+document.addEventListener('keydown', e => {
+  const typing = /INPUT|TEXTAREA/.test(document.activeElement.tagName) || $('#linkDlg').open;
+  if (e.key === 'Escape') { closeSettings(); if (document.activeElement === $('#q')) $('#q').blur(); return; }
+  if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === '/') { e.preventDefault(); $('#q').focus(); }
+  else if (e.key.toLowerCase() === 'n') { e.preventDefault(); openLink(-1); }
+  else if (e.key === ',') { e.preventDefault(); openSettings(); }
+});
+
+function init() {
+  renderEngine(); renderLinks(); fillSettings(); applyBg();
+  $('#notes').value = S.notes; lastMinute = -1; tick(); loadWeather();
+}
+buildSwatches();
+init();
+startClock();
+setInterval(() => loadWeather(), 20 * 60e3);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { lastMinute = -1; tick(); loadWeather(); } });
+})();
+</script>
+</body>
+</html>
