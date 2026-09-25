@@ -154,6 +154,31 @@ body.light .quote{text-shadow:none}
 .quote figcaption{margin-top:12px;font-size:.78rem;font-weight:550;color:var(--fg2);letter-spacing:.07em;text-transform:uppercase}
 .quote figcaption::before{content:"";display:inline-block;width:22px;height:1px;background:currentColor;vertical-align:middle;margin-right:10px;opacity:.7}
 select.inp option{background:#1b2033;color:#fff}
+.feeds{display:contents}
+.rss{padding:18px 20px 12px}
+.rss-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:6px}
+.rss-title{font-weight:600;font-size:1rem;color:var(--fg);text-decoration:none;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rss-title:hover{text-decoration:underline;text-underline-offset:3px}
+.rss-list{list-style:none;margin:0 -8px;padding:0;max-height:340px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.25) transparent}
+.rss-list a{display:block;padding:8px;border-radius:10px;text-decoration:none;color:var(--fg)}
+.rss-list li+li a{box-shadow:0 -1px 0 var(--line)}
+.rss-list a:hover{background:rgba(255,255,255,.08);box-shadow:none}
+.rss-list li:hover+li a{box-shadow:none}
+body.light .rss-list a:hover{background:rgba(0,0,0,.05)}
+.rss-list .rt{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:.93rem;line-height:1.35}
+.rss-list a:visited .rt{color:var(--fg2)}
+.rss-list .rm{display:block;font-size:.74rem;color:var(--fg3);margin-top:3px}
+.rss-list .new .rm::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-right:6px;vertical-align:1px}
+.rss .empty{color:var(--fg2);font-size:.9rem;margin:6px 0 8px}
+.feedlist{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.feedrow{display:grid;grid-template-columns:1fr auto auto;gap:6px;align-items:center}
+.feedrow .inp{padding:8px 10px;font-size:.9rem}
+.feedrow select.inp{width:auto}
+.feedrow small{grid-column:1/-1;color:var(--fg3);font-size:.75rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:-2px}
+.iconbtn{border:0;background:rgba(255,255,255,.08);width:34px;height:34px;border-radius:10px;color:#ff9d9d}
+.iconbtn:hover{background:rgba(255,255,255,.16)}
+.proxy{margin-top:16px;font-size:.9rem}
+.proxy summary{cursor:pointer;color:var(--fg2);margin-bottom:10px}
 .nameday .tm{color:var(--fg3)}
 .wx-air{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);font-size:.84rem;color:var(--fg2)}
 .wx-air:empty{display:none}
@@ -293,6 +318,7 @@ dialog .actions .sp{flex:1}
   <aside class="side">
     <div class="panel w" id="wx" data-w="wx" data-label="Počasie"></div>
     <div class="panel fx w" id="fx" data-w="fx" data-label="Kurz eura" hidden></div>
+    <div id="feeds" class="feeds"></div>
     <div class="panel notes w" data-w="notes" data-label="Poznámky">
       <h2><label for="notes">Poznámky</label></h2>
       <textarea id="notes" placeholder="Čo nechceš zabudnúť…"></textarea>
@@ -385,6 +411,21 @@ dialog .actions .sp{flex:1}
     <p class="msg" id="fxMsg"></p>
   </section>
 
+  <section id="rssSection">
+    <h3>RSS kanály</h3>
+    <form class="row" id="rssForm">
+      <input class="inp" id="rssUrl" placeholder="https://web.sk/feed" style="flex:1" aria-label="Adresa RSS kanála">
+      <button class="btn primary">Pridať</button>
+    </form>
+    <p class="msg" id="rssMsg"></p>
+    <div class="feedlist" id="rssList"></div>
+    <details class="proxy">
+      <summary>Proxy server</summary>
+      <p class="help">Väčšina webov nedovolí inej stránke čítať svoje RSS (obmedzenie CORS), preto ide sťahovanie cez proxy. Predvolene sa použije verejná služba allorigins, ktorá občas nefunguje. Spoľahlivejšie je nasadiť si vlastnú, stačí súbor <code>rss-proxy.js</code> na Cloudflare Workers zadarmo.</p>
+      <label class="field">Vlastná proxy<input class="inp" id="rssProxy" placeholder="https://rss-proxy.meno.workers.dev/?url="></label>
+    </details>
+  </section>
+
   <section>
     <h3>Záloha</h3>
     <p class="help" style="margin-bottom:12px">Nastavenia sú uložené len v tomto prehliadači. Zálohu si stiahni ako súbor a obnov ju hocikde.</p>
@@ -435,7 +476,9 @@ const DEFAULTS = {
   ],
   notes: '',
   fx: { show: true, cur: 'USD, CZK, HUF' },
-  quote: { show: true, lang: 'all' }
+  quote: { show: true, lang: 'all' },
+  feeds: [],
+  rssProxy: ''
 };
 
 function load() {
@@ -924,6 +967,144 @@ async function loadFx(force) {
   }
 }
 
+/* ================= RSS ================= */
+const RSSKEY = id => 'epoNewTab.rss.' + id;
+const PUBLIC_PROXY = 'https://api.allorigins.win/raw?url=';
+const rtf = new Intl.RelativeTimeFormat('sk', { numeric: 'auto' });
+function ago(t) {
+  if (!t) return '';
+  const sec = (t - Date.now()) / 1000, a = Math.abs(sec);
+  if (a < 60) return 'práve teraz';
+  if (a < 3600) return rtf.format(Math.round(sec / 60), 'minute');
+  if (a < 86400) return rtf.format(Math.round(sec / 3600), 'hour');
+  if (a < 7 * 86400) return rtf.format(Math.round(sec / 86400), 'day');
+  return new Intl.DateTimeFormat('sk-SK', { day: 'numeric', month: 'numeric', year: 'numeric' }).format(t);
+}
+const proxify = (url, p) => p.includes('{url}') ? p.replace('{url}', encodeURIComponent(url)) : p + encodeURIComponent(url);
+async function fetchFeedText(url, prefer) {
+  const routes = [['direct', u => u]];
+  if (S.rssProxy.trim()) routes.push(['custom', u => proxify(u, S.rssProxy.trim())]);
+  routes.push(['public', u => proxify(u, PUBLIC_PROXY)]);
+  routes.sort((a, b) => (b[0] === prefer) - (a[0] === prefer));
+  for (const [name, make] of routes) {
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 9000);
+    try {
+      const r = await fetch(make(url), { signal: ctl.signal });
+      if (!r.ok) continue;
+      const txt = await r.text();
+      if (/<(rss|feed|rdf:RDF)[\s>]/i.test(txt)) return [txt, name];
+    } catch { } finally { clearTimeout(t); }
+  }
+  throw new Error('fetch');
+}
+function parseFeed(txt, base) {
+  const doc = new DOMParser().parseFromString(txt, 'text/xml');
+  if (doc.getElementsByTagName('parsererror').length) throw new Error('parse');
+  const kid = (el, ...names) => { for (const n of names) { const c = [...el.children].find(c => c.localName === n && (c.textContent.trim() || c.getAttribute('href'))); if (c) return c; } return null; };
+  const clean = s => (s || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+  const abs = u => { try { return new URL(u, base).href; } catch { return ''; } };
+  const root = doc.documentElement, atom = root.localName === 'feed';
+  const chan = atom ? root : (root.getElementsByTagName('channel')[0] || root);
+  const linkOf = el => {
+    const ls = [...el.children].filter(c => c.localName === 'link');
+    const alt = ls.find(l => l.getAttribute('href') && (!l.getAttribute('rel') || l.getAttribute('rel') === 'alternate'));
+    if (alt) return alt.getAttribute('href');
+    const plain = ls.find(l => !l.getAttribute('href') && l.textContent.trim());
+    return plain ? plain.textContent.trim() : (kid(el, 'guid')?.textContent.trim() || '');
+  };
+  const nodes = [...doc.getElementsByTagName(atom ? 'entry' : 'item')];
+  const items = nodes.slice(0, 30).map(it => {
+    const d = kid(it, 'pubDate', 'published', 'updated', 'date');
+    return { t: clean(kid(it, 'title')?.textContent) || '(bez názvu)', l: abs(linkOf(it)), d: d ? (Date.parse(d.textContent.trim()) || 0) : 0 };
+  }).filter(i => i.l);
+  return { title: clean(kid(chan, 'title')?.textContent), site: abs(linkOf(chan)) || base, items };
+}
+function rssCache(id) { try { return JSON.parse(localStorage.getItem(RSSKEY(id))); } catch { return null; } }
+function renderFeedWidget(f) {
+  let box = document.querySelector(`[data-w="rss-${f.id}"]`);
+  if (!box) {
+    box = document.createElement('section');
+    box.className = 'panel rss w'; box.dataset.w = 'rss-' + f.id;
+    if (editing()) box.setAttribute('tabindex', '0');
+    $('#feeds').appendChild(box);
+  }
+  const c = rssCache(f.id), name = f.title || c?.title || hostOf(f.url);
+  box.dataset.label = 'RSS · ' + name;
+  box.setAttribute('aria-label', 'RSS ' + name);
+  const head = `<div class="rss-head"><a class="rss-title" href="${esc(c?.site || f.url)}">${esc(name)}</a>
+    <button class="wx-upd" type="button" data-refresh title="Obnoviť">${c ? new Date(c.ts).toTimeString().slice(0, 5) + ' ' : ''}↻</button></div>`;
+  let body;
+  if (!c) body = `<p class="empty">${f.err ? 'Kanál sa nepodarilo načítať.' : 'Načítavam…'}</p>`;
+  else if (!c.items.length) body = `<p class="empty">Kanál je zatiaľ prázdny.</p>`;
+  else body = `<ol class="rss-list">${c.items.slice(0, f.count).map(i =>
+      `<li class="${i.d && i.d > (c.seen || 0) ? 'new' : ''}"><a href="${esc(i.l)}"><span class="rt">${esc(i.t)}</span><span class="rm">${esc(ago(i.d))}</span></a></li>`).join('')}</ol>`;
+  box.innerHTML = head + body;
+  box.querySelector('[data-refresh]').onclick = () => loadFeed(f, true);
+}
+function renderFeeds() {
+  const ids = new Set(S.feeds.map(f => 'rss-' + f.id));
+  document.querySelectorAll('#feeds [data-w]').forEach(el => { if (!ids.has(el.dataset.w)) el.remove(); });
+  S.feeds.forEach(renderFeedWidget);
+  // keep DOM order equal to settings order
+  S.feeds.forEach(f => $('#feeds').appendChild(document.querySelector(`[data-w="rss-${f.id}"]`)));
+}
+async function loadFeed(f, force) {
+  const c = rssCache(f.id);
+  if (!force && c && Date.now() - c.ts < 30 * 60e3) return;
+  try {
+    const [txt, via] = await fetchFeedText(f.url, f.via);
+    const data = parseFeed(txt, f.url);
+    f.via = via; f.err = false; save();
+    // "seen" = newest item the user has already had a chance to see before this refresh
+    const seen = c ? Math.max(...c.items.map(i => i.d || 0), 0) : Math.max(...data.items.map(i => i.d || 0), 0);
+    try { localStorage.setItem(RSSKEY(f.id), JSON.stringify({ ts: Date.now(), title: data.title, site: data.site, items: data.items.slice(0, 20), seen })); } catch { }
+  } catch { f.err = true; }
+  if (S.feeds.includes(f)) { renderFeedWidget(f); applyLayout(); }
+}
+function loadFeeds(force) { S.feeds.forEach((f, i) => setTimeout(() => loadFeed(f, force), i * 150)); }
+function renderFeedSettings() {
+  $('#rssList').innerHTML = S.feeds.map((f, i) => `<div class="feedrow" data-i="${i}">
+      <input class="inp" data-k="title" value="${esc(f.title || rssCache(f.id)?.title || '')}" aria-label="Názov kanála" placeholder="${esc(hostOf(f.url))}">
+      <select class="inp" data-k="count" aria-label="Počet správ">${[5, 8, 12, 20].map(n => `<option value="${n}" ${n === f.count ? 'selected' : ''}>${n} správ</option>`).join('')}</select>
+      <button class="iconbtn" type="button" data-del aria-label="Odstrániť kanál">✕</button>
+      <small>${esc(f.url)}</small></div>`).join('');
+}
+$('#rssList').addEventListener('change', e => {
+  const row = e.target.closest('.feedrow'); if (!row) return;
+  const f = S.feeds[row.dataset.i], k = e.target.dataset.k;
+  if (k === 'title') f.title = e.target.value.trim();
+  if (k === 'count') f.count = +e.target.value;
+  save(); renderFeedWidget(f); applyLayout();
+});
+$('#rssList').addEventListener('click', e => {
+  if (!e.target.closest('[data-del]')) return;
+  const i = +e.target.closest('.feedrow').dataset.i, f = S.feeds[i];
+  S.feeds.splice(i, 1);
+  if (S.layout) delete S.layout['rss-' + f.id];
+  try { localStorage.removeItem(RSSKEY(f.id)); } catch { }
+  save(); renderFeeds(); renderFeedSettings(); applyLayout();
+});
+$('#rssForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const url = normUrl($('#rssUrl').value); if (!hostOf(url)) return;
+  if (S.feeds.some(f => f.url === url)) { $('#rssMsg').textContent = 'Tento kanál už máš pridaný.'; return; }
+  $('#rssMsg').textContent = 'Overujem kanál…';
+  try {
+    const [txt, via] = await fetchFeedText(url);
+    const data = parseFeed(txt, url);
+    const f = { id: Date.now().toString(36), url, title: '', count: 8, via };
+    S.feeds.push(f); save();
+    const newest = Math.max(...data.items.map(i => i.d || 0), 0);
+    try { localStorage.setItem(RSSKEY(f.id), JSON.stringify({ ts: Date.now(), title: data.title, site: data.site, items: data.items.slice(0, 20), seen: newest })); } catch { }
+    renderFeeds(); renderFeedSettings(); applyLayout();
+    $('#rssUrl').value = '';
+    $('#rssMsg').textContent = `Pridané: ${data.title || hostOf(url)}`;
+  } catch {
+    $('#rssMsg').textContent = 'Kanál sa nepodarilo načítať. Skontroluj adresu, prípadne nastav vlastnú proxy nižšie.';
+  }
+});
+$('#rssProxy').addEventListener('change', e => { S.rssProxy = e.target.value.trim(); S.feeds.forEach(f => f.via = null); save(); loadFeeds(true); });
+
 /* ================= notes ================= */
 let noteT;
 $('#notes').value = S.notes;
@@ -941,6 +1122,7 @@ $('#closeSettings').onclick = closeSettings;
 $('#scrim').onclick = closeSettings;
 
 function fillSettings() {
+  $('#rssProxy').value = S.rssProxy; renderFeedSettings();
   $('#setQuote').checked = S.quote.show; $('#setQuoteLang').value = S.quote.lang;
   $('#setFx').checked = S.fx.show; $('#setFxCur').value = S.fx.cur;
   $('#setName').value = S.name; $('#set24').checked = S.h24; $('#setSec').checked = S.seconds;
@@ -997,7 +1179,7 @@ $('#importFile').addEventListener('change', async e => {
 });
 $('#resetBtn').addEventListener('click', () => {
   if (!confirm('Obnoviť všetky nastavenia na predvolené? Odkazy aj poznámky sa vymažú.')) return;
-  try { [KEY, IMGKEY, WXKEY, AQKEY, FXKEY].forEach(k => localStorage.removeItem(k)); } catch { }
+  try { [KEY, IMGKEY, WXKEY, AQKEY, FXKEY].forEach(k => localStorage.removeItem(k)); Object.keys(localStorage).filter(k => k.startsWith('epoNewTab.rss.')).forEach(k => localStorage.removeItem(k)); } catch { }
   S = structuredClone(DEFAULTS); WX = null; init(); $('#backupMsg').textContent = 'Nastavenia obnovené.';
 });
 
@@ -1020,6 +1202,7 @@ function migrateLayout() {
 const DEFAULT_POS = {
   quote: R => ({ x: Math.round(R.w * .06), y: Math.max(0, R.h - 200), w: 560 }),
   fx: R => ({ x: Math.max(0, R.w - 440), y: Math.round(R.h * .55), w: 360 }),
+  rss: R => { const n = Object.keys(S.layout || {}).filter(k => k.startsWith('rss-')).length; return { x: Math.round(R.w / 2 - 190 + n * 28), y: Math.round(R.h * .22 + n * 28), w: 380 }; },
 };
 function applyLayout() {
   migrateLayout();
@@ -1029,7 +1212,8 @@ function applyLayout() {
   if (on) document.documentElement.style.setProperty('--refw', S.layoutRef.w + 'px');
   widgets().forEach(w => {
     let p = on && S.layout[w.dataset.w];
-    if (on && !p && !w.hidden && DEFAULT_POS[w.dataset.w]) { p = S.layout[w.dataset.w] = DEFAULT_POS[w.dataset.w](S.layoutRef); save(); }
+    const def = DEFAULT_POS[w.dataset.w] || (w.dataset.w.startsWith('rss-') && DEFAULT_POS.rss);
+    if (on && !p && !w.hidden && def) { p = S.layout[w.dataset.w] = def(S.layoutRef); save(); }
     if (!p) { w.style.left = w.style.top = w.style.width = w.style.transform = ''; return; }
     w.style.width = w.dataset.w === 'time' ? '' : p.w + 'px';
     w.style.transform = Math.abs(c.k - 1) < 0.001 ? '' : `scale(${c.k})`;
@@ -1137,14 +1321,14 @@ document.addEventListener('keydown', e => {
 });
 
 function init() {
-  renderEngine(); renderLinks(); fillSettings(); applyBg(); renderQuote(new Date(), true); applyLayout();
-  $('#notes').value = S.notes; lastMinute = -1; ndDay = ''; tick(); loadWeather(); idle(() => loadFx());
+  renderEngine(); renderLinks(); fillSettings(); applyBg(); renderQuote(new Date(), true); renderFeeds(); applyLayout();
+  $('#notes').value = S.notes; lastMinute = -1; ndDay = ''; tick(); loadWeather(); idle(() => { loadFx(); loadFeeds(); });
 }
 buildSwatches();
 init();
 startClock();
-setInterval(() => { loadWeather(); loadFx(); }, 20 * 60e3);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { lastMinute = -1; tick(); loadWeather(); } });
+setInterval(() => { loadWeather(); loadFx(); loadFeeds(); }, 20 * 60e3);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { lastMinute = -1; tick(); loadWeather(); loadFeeds(); } });
 })();
 </script>
 </body>
