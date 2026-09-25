@@ -7,6 +7,8 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌗</text></svg>">
 <link rel="preload" href="epo-font.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+@property --ft{syntax:'<length>';inherits:false;initial-value:0px}
+@property --fb{syntax:'<length>';inherits:false;initial-value:0px}
 body{-webkit-user-select:none;user-select:none}
 input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}
 img,svg{-webkit-user-drag:none}
@@ -160,6 +162,10 @@ select.inp option{background:#1b2033;color:#fff}
 .rss-title{font-weight:600;font-size:1rem;color:var(--fg);text-decoration:none;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rss-title:hover{text-decoration:underline;text-underline-offset:3px}
 .rss-list{list-style:none;margin:0 -8px;padding:0;max-height:340px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.25) transparent}
+.rss-list{--ft:0px;--fb:0px;transition:--ft .25s,--fb .25s;
+  -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 var(--ft),#000 calc(100% - var(--fb)),transparent 100%);
+  mask-image:linear-gradient(to bottom,transparent 0,#000 var(--ft),#000 calc(100% - var(--fb)),transparent 100%)}
+.rss-list.fade-t{--ft:22px} .rss-list.fade-b{--fb:48px}
 .rss-list a{display:block;padding:8px;border-radius:10px;text-decoration:none;color:var(--fg)}
 .rss-list li+li a{box-shadow:0 -1px 0 var(--line)}
 .rss-list a:hover{background:rgba(255,255,255,.08);box-shadow:none}
@@ -1095,6 +1101,15 @@ function renderFeedWidget(f) {
   else body = `<ol class="rss-list">${c.items.slice(0, f.count).map(i =>
       `<li class="${i.d && i.d > (c.seen || 0) ? 'new' : ''}"><a href="${esc(i.l)}"><span class="rt">${esc(i.t)}</span><span class="rm">${esc(ago(i.d))}</span></a></li>`).join('')}</ol>`;
   box.innerHTML = head + body;
+  const ul = box.querySelector('.rss-list');
+  if (ul) {
+    const upd = () => {
+      ul.classList.toggle('fade-t', ul.scrollTop > 2);
+      ul.classList.toggle('fade-b', ul.scrollTop + ul.clientHeight < ul.scrollHeight - 2);
+    };
+    ul.addEventListener('scroll', upd, { passive: true });
+    requestAnimationFrame(upd);
+  }
   box.querySelector('[data-refresh]').onclick = () => loadFeed(f, true);
 }
 function renderFeeds() {
