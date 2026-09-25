@@ -414,10 +414,11 @@ dialog .actions .sp{flex:1}
   <section id="rssSection">
     <h3>RSS kanály</h3>
     <form class="row" id="rssForm">
-      <input class="inp" id="rssUrl" placeholder="https://web.sk/feed" style="flex:1" aria-label="Adresa RSS kanála">
+      <input class="inp" id="rssUrl" placeholder="Adresa webu alebo RSS kanála" style="flex:1" aria-label="Adresa RSS kanála">
       <button class="btn primary">Pridať</button>
     </form>
     <p class="msg" id="rssMsg"></p>
+    <div class="results" id="rssResults"></div>
     <div class="feedlist" id="rssList"></div>
     <details class="proxy">
       <summary>Proxy server</summary>
@@ -981,25 +982,80 @@ function ago(t) {
   return new Intl.DateTimeFormat('sk-SK', { day: 'numeric', month: 'numeric', year: 'numeric' }).format(t);
 }
 const proxify = (url, p) => p.includes('{url}') ? p.replace('{url}', encodeURIComponent(url)) : p + encodeURIComponent(url);
-async function fetchFeedText(url, prefer) {
+const feedErr = (code, status) => Object.assign(new Error(code), { code, status });
+const isFeedText = t => /<(rss|feed|rdf:RDF)[\s>]/i.test(t.slice(0, 4000));
+const isHtmlText = t => /<(!doctype html|html)[\s>]/i.test(t.slice(0, 4000));
+// Decode bytes with the right charset: BOM > XML declaration > HTTP header > <meta charset> > UTF-8,
+// with a windows-1250 fallback when UTF-8 obviously doesn't fit (older Slovak/Czech sites).
+function decodeBytes(buf, contentType) {
+  const u8 = new Uint8Array(buf);
+  if (u8[0] === 0xEF && u8[1] === 0xBB && u8[2] === 0xBF) return new TextDecoder('utf-8').decode(u8);
+  if (u8[0] === 0xFF && u8[1] === 0xFE) return new TextDecoder('utf-16le').decode(u8);
+  if (u8[0] === 0xFE && u8[1] === 0xFF) return new TextDecoder('utf-16be').decode(u8);
+  const head = new TextDecoder('windows-1252').decode(u8.subarray(0, 2048));
+  const enc = head.match(/<\?xml[^>]*encoding=["']?([\w.:-]+)/i)?.[1]
+    || (contentType || '').match(/charset=["']?([\w.:-]+)/i)?.[1]
+    || head.match(/<meta[^>]+charset=["']?([\w.:-]+)/i)?.[1]
+    || 'utf-8';
+  let dec; try { dec = new TextDecoder(enc.toLowerCase()); } catch { dec = new TextDecoder('utf-8'); }
+  let txt = dec.decode(u8);
+  if (dec.encoding === 'utf-8' && (txt.match(/\uFFFD/g) || []).length > 3) txt = new TextDecoder('windows-1250').decode(u8);
+  return txt;
+}
+async function fetchRaw(url, prefer, accept = isFeedText) {
   const routes = [['direct', u => u]];
   if (S.rssProxy.trim()) routes.push(['custom', u => proxify(u, S.rssProxy.trim())]);
   routes.push(['public', u => proxify(u, PUBLIC_PROXY)]);
   routes.sort((a, b) => (b[0] === prefer) - (a[0] === prefer));
+  let status = 0, gotText = false;
   for (const [name, make] of routes) {
     const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 9000);
     try {
       const r = await fetch(make(url), { signal: ctl.signal });
-      if (!r.ok) continue;
-      const txt = await r.text();
-      if (/<(rss|feed|rdf:RDF)[\s>]/i.test(txt)) return [txt, name];
+      if (!r.ok) { status = status || r.status; continue; }
+      const txt = decodeBytes(await r.arrayBuffer(), r.headers.get('content-type'));
+      if (accept(txt)) return [txt, name];
+      gotText = true;
     } catch { } finally { clearTimeout(t); }
   }
-  throw new Error('fetch');
+  if (gotText) throw feedErr('notfeed');
+  if (status) throw feedErr('http', status);
+  throw feedErr('network');
 }
+// Accepts a feed URL or any web page; for a page it looks for <link rel="alternate" type="…rss/atom…">.
+async function resolveFeed(url) {
+  const [txt, via] = await fetchRaw(url, null, t => isFeedText(t) || isHtmlText(t));
+  if (isFeedText(txt)) return { feeds: [{ url, txt, via }] };
+  const doc = new DOMParser().parseFromString(txt, 'text/html');
+  const base = doc.querySelector('base[href]')?.getAttribute('href') || url;
+  const abs = h => { try { return new URL(h, new URL(base, url)).href; } catch { return ''; } };
+  let cands = [...doc.querySelectorAll('link[rel~="alternate" i][href]')]
+    .filter(l => /(rss|atom)\+xml|\/xml/i.test(l.getAttribute('type') || ''))
+    .map(l => ({ url: abs(l.getAttribute('href')), title: (l.getAttribute('title') || '').trim() }))
+    .filter((c, i, a) => c.url && a.findIndex(x => x.url === c.url) === i);
+  if (cands.length > 1) return { choices: cands.slice(0, 12), via };
+  if (!cands.length) {
+    // no advertised feed: try the usual suspects
+    const origin = new URL(url).origin;
+    cands = ['/feed/', '/rss', '/rss.xml', '/feed.xml', '/atom.xml', '/index.xml'].map(p => ({ url: origin + p }));
+  }
+  for (const c of cands) {
+    try { const [t, v] = await fetchRaw(c.url, via); return { feeds: [{ url: c.url, txt: t, via: v }] }; } catch { }
+  }
+  throw feedErr('nofeed');
+}
+const FEED_MSG = {
+  notfeed: 'Na tejto adrese nie je RSS kanál.',
+  nofeed: 'Na stránke som nenašiel žiadny RSS kanál. Skús nájsť odkaz na RSS priamo na webe.',
+  parse: 'Kanál sa nedá prečítať, jeho XML je poškodené.',
+  network: 'Nepodarilo sa spojiť so stránkou ani cez proxy. Skontroluj adresu a nastavenie proxy.',
+};
+const feedMsg = e => e.code === 'http'
+  ? (e.status === 404 ? 'Adresa neexistuje (chyba 404).' : e.status === 403 ? 'Web alebo proxy odmietli prístup (chyba 403). Skontroluj ALLOWED_ORIGIN v proxy.' : `Server vrátil chybu ${e.status}.`)
+  : (FEED_MSG[e.code] || FEED_MSG.network);
 function parseFeed(txt, base) {
-  const doc = new DOMParser().parseFromString(txt, 'text/xml');
-  if (doc.getElementsByTagName('parsererror').length) throw new Error('parse');
+  const doc = new DOMParser().parseFromString(txt.replace(/^\s*<\?xml[^>]*\?>/, ''), 'text/xml');
+  if (doc.getElementsByTagName('parsererror').length) throw feedErr('parse');
   const kid = (el, ...names) => { for (const n of names) { const c = [...el.children].find(c => c.localName === n && (c.textContent.trim() || c.getAttribute('href'))); if (c) return c; } return null; };
   const clean = s => (s || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
   const abs = u => { try { return new URL(u, base).href; } catch { return ''; } };
@@ -1034,7 +1090,7 @@ function renderFeedWidget(f) {
   const head = `<div class="rss-head"><a class="rss-title" href="${esc(c?.site || f.url)}">${esc(name)}</a>
     <button class="wx-upd" type="button" data-refresh title="Obnoviť">${c ? new Date(c.ts).toTimeString().slice(0, 5) + ' ' : ''}↻</button></div>`;
   let body;
-  if (!c) body = `<p class="empty">${f.err ? 'Kanál sa nepodarilo načítať.' : 'Načítavam…'}</p>`;
+  if (!c) body = `<p class="empty">${f.err ? esc(typeof f.err === 'string' ? f.err : 'Kanál sa nepodarilo načítať.') : 'Načítavam…'}</p>`;
   else if (!c.items.length) body = `<p class="empty">Kanál je zatiaľ prázdny.</p>`;
   else body = `<ol class="rss-list">${c.items.slice(0, f.count).map(i =>
       `<li class="${i.d && i.d > (c.seen || 0) ? 'new' : ''}"><a href="${esc(i.l)}"><span class="rt">${esc(i.t)}</span><span class="rm">${esc(ago(i.d))}</span></a></li>`).join('')}</ol>`;
@@ -1050,15 +1106,15 @@ function renderFeeds() {
 }
 async function loadFeed(f, force) {
   const c = rssCache(f.id);
-  if (!force && c && Date.now() - c.ts < 30 * 60e3) return;
+  if (!force && c && c.v === 2 && Date.now() - c.ts < 30 * 60e3) return;
   try {
-    const [txt, via] = await fetchFeedText(f.url, f.via);
+    const [txt, via] = await fetchRaw(f.url, f.via);
     const data = parseFeed(txt, f.url);
     f.via = via; f.err = false; save();
     // "seen" = newest item the user has already had a chance to see before this refresh
     const seen = c ? Math.max(...c.items.map(i => i.d || 0), 0) : Math.max(...data.items.map(i => i.d || 0), 0);
-    try { localStorage.setItem(RSSKEY(f.id), JSON.stringify({ ts: Date.now(), title: data.title, site: data.site, items: data.items.slice(0, 20), seen })); } catch { }
-  } catch { f.err = true; }
+    try { localStorage.setItem(RSSKEY(f.id), JSON.stringify({ v: 2, ts: Date.now(), title: data.title, site: data.site, items: data.items.slice(0, 20), seen })); } catch { }
+  } catch (e) { f.err = feedMsg(e); }
   if (S.feeds.includes(f)) { renderFeedWidget(f); applyLayout(); }
 }
 function loadFeeds(force) { S.feeds.forEach((f, i) => setTimeout(() => loadFeed(f, force), i * 150)); }
@@ -1084,23 +1140,44 @@ $('#rssList').addEventListener('click', e => {
   try { localStorage.removeItem(RSSKEY(f.id)); } catch { }
   save(); renderFeeds(); renderFeedSettings(); applyLayout();
 });
+function addFeed(url, txt, via) {
+  const data = parseFeed(txt, url);
+  const f = { id: Date.now().toString(36), url, title: '', count: 8, via };
+  S.feeds.push(f); save();
+  const newest = Math.max(...data.items.map(i => i.d || 0), 0);
+  try { localStorage.setItem(RSSKEY(f.id), JSON.stringify({ v: 2, ts: Date.now(), title: data.title, site: data.site, items: data.items.slice(0, 20), seen: newest })); } catch { }
+  renderFeeds(); renderFeedSettings(); applyLayout();
+  $('#rssUrl').value = ''; $('#rssResults').innerHTML = '';
+  $('#rssMsg').textContent = `Pridané: ${data.title || hostOf(url)}`;
+}
 $('#rssForm').addEventListener('submit', async e => {
   e.preventDefault();
   const url = normUrl($('#rssUrl').value); if (!hostOf(url)) return;
   if (S.feeds.some(f => f.url === url)) { $('#rssMsg').textContent = 'Tento kanál už máš pridaný.'; return; }
-  $('#rssMsg').textContent = 'Overujem kanál…';
+  $('#rssMsg').textContent = 'Hľadám kanál…'; $('#rssResults').innerHTML = '';
   try {
-    const [txt, via] = await fetchFeedText(url);
-    const data = parseFeed(txt, url);
-    const f = { id: Date.now().toString(36), url, title: '', count: 8, via };
-    S.feeds.push(f); save();
-    const newest = Math.max(...data.items.map(i => i.d || 0), 0);
-    try { localStorage.setItem(RSSKEY(f.id), JSON.stringify({ ts: Date.now(), title: data.title, site: data.site, items: data.items.slice(0, 20), seen: newest })); } catch { }
-    renderFeeds(); renderFeedSettings(); applyLayout();
-    $('#rssUrl').value = '';
-    $('#rssMsg').textContent = `Pridané: ${data.title || hostOf(url)}`;
-  } catch {
-    $('#rssMsg').textContent = 'Kanál sa nepodarilo načítať. Skontroluj adresu, prípadne nastav vlastnú proxy nižšie.';
+    const res = await resolveFeed(url);
+    if (res.feeds) {
+      const [{ url: fu, txt, via }] = res.feeds;
+      if (S.feeds.some(f => f.url === fu)) { $('#rssMsg').textContent = 'Tento kanál už máš pridaný.'; return; }
+      addFeed(fu, txt, via);
+      if (fu !== url) $('#rssMsg').textContent += ' (kanál som našiel na stránke)';
+      return;
+    }
+    const n = res.choices.length;
+    $('#rssMsg').textContent = `Na stránke ${n < 5 ? `sú ${n} kanály` : `je ${n} kanálov`}, vyber si:`;
+    $('#rssResults').innerHTML = res.choices.map((c, i) =>
+      `<button type="button" data-i="${i}">${esc(c.title || new URL(c.url).pathname)} <small>${esc(c.url)}</small></button>`).join('');
+    $('#rssResults').onclick = async ev => {
+      const b = ev.target.closest('button'); if (!b) return;
+      const c = res.choices[b.dataset.i];
+      if (S.feeds.some(f => f.url === c.url)) { $('#rssMsg').textContent = 'Tento kanál už máš pridaný.'; return; }
+      $('#rssMsg').textContent = 'Načítavam kanál…';
+      try { const [txt, via] = await fetchRaw(c.url, res.via); addFeed(c.url, txt, via); }
+      catch (err) { $('#rssMsg').textContent = feedMsg(err); }
+    };
+  } catch (err) {
+    $('#rssMsg').textContent = feedMsg(err);
   }
 });
 $('#rssProxy').addEventListener('change', e => { S.rssProxy = e.target.value.trim(); S.feeds.forEach(f => f.via = null); save(); loadFeeds(true); });
